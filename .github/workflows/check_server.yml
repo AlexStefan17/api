@@ -1,0 +1,31 @@
+name: Check Servers and Output Logs
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Runs every 5 minutes
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  check-servers:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check Server Status
+      run: |
+        # Define the server URLs
+        servers=(
+          "http://srvalx.duckdns.org:8983/solr/"
+          "http://zimbor.go.ro/solr/"
+        )
+        
+        # Loop through servers and check their status
+        for server in "${servers[@]}"; do
+          echo "Checking $server..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$server")
+          if [ "$response" -eq 200 ]; then
+            echo "$server is up and running (HTTP 200 OK)"
+          else
+            echo "$server is not available or returned status code $response"
+          fi
+          echo "---------------------------------"
+        done
