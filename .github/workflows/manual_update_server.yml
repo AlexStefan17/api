@@ -11,6 +11,7 @@ on:
           - 'zimbor.go.ro'
           - 'zimbor.go.ro:8985'
           - 'srvalx.duckdns.org:8983'
+          -  'peviitor.go.ro'
         default: 'zimbor.go.ro'
 
 jobs:
@@ -32,7 +33,6 @@ jobs:
         BACKUP_FILE="$CONFIG_FILE.bak"
         manual_server="${{ github.event.inputs.server }}"
 
-        # Backup the original config file
         cp $CONFIG_FILE $BACKUP_FILE
 
         # Escape single quotes and other special characters in the server name
@@ -44,62 +44,36 @@ jobs:
         # Uncomment the line for the manual server
         sed -i "s/\/\/\$server = '$escaped_manual_server';/\$server = '$escaped_manual_server';/" $CONFIG_FILE
 
-        # Create a new branch for the PR
         git checkout -b update-server-${{ github.sha }}
 
-        # Configure git user
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
-
-        # Add and commit the changes
         git add $CONFIG_FILE
         git commit -m "Manually updated server to $manual_server"
 
     - name: Fetch and Rebase
       run: |
-        # Fetch the latest changes from the remote
         git fetch origin
-
-        # Rebase the new branch on top of the latest changes from the base branch (e.g., master)
         git rebase origin/master || { echo 'Rebase failed'; exit 1; }
 
     - name: Push changes and create PR
       run: |
-        # Clear the GH_TOKEN environment variable for authentication
         unset GH_TOKEN
-
-        # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
-
-        # Authenticate GitHub CLI with the default GITHUB_TOKEN
         echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-        # Create a pull request using the default GITHUB_TOKEN
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
       env:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
-        # Authenticate GitHub CLI with the PAT
         echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
-
-        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        
-        # Approve the PR using the PAT
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
       run: |
-        # Clear the GH_TOKEN environment variable for authentication
         unset GH_TOKEN
-
-        # Authenticate GitHub CLI with the default GITHUB_TOKEN
         echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        
-        # Merge the PR
         gh pr merge $PR_NUMBER --squash --delete-branch
