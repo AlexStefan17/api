@@ -30,6 +30,10 @@ jobs:
         # Backup the original config file
         cp $CONFIG_FILE $BACKUP_FILE
 
+        # Ignore the backup file
+        echo "$BACKUP_FILE" >> .gitignore
+        git add .gitignore
+
         # Escape single quotes and other special characters in the server name
         escaped_manual_server=$(echo "$manual_server" | sed "s/[']/\\\\'/g")
 
@@ -50,13 +54,14 @@ jobs:
 
     - name: Push changes and create PR
       env:
-        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use the PAT instead of GITHUB_TOKEN
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git push origin update-server-${{ github.sha }}
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Auto-merge PR
       env:
-        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use the PAT instead of GITHUB_TOKEN
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh pr merge --squash --delete-branch --admin
+        PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        gh pr merge $PR_NUMBER --squash --delete-branch
