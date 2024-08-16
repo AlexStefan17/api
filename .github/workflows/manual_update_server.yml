@@ -64,14 +64,17 @@ jobs:
         git rebase origin/master || { echo 'Rebase failed'; exit 1; }
 
     - name: Push changes and create PR
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Clear the GH_TOKEN environment variable for authentication
+        unset GH_TOKEN
+
         # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
 
+        # Authenticate GitHub CLI with the default GITHUB_TOKEN
+        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
         # Create a pull request using the default GITHUB_TOKEN
-        gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
@@ -79,7 +82,7 @@ jobs:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
         # Authenticate GitHub CLI with the PAT
-        gh auth login --with-token <<< "${{ secrets.PAT_TOKEN }}"
+        echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
 
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
@@ -88,11 +91,12 @@ jobs:
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Clear the GH_TOKEN environment variable for authentication
+        unset GH_TOKEN
+
         # Authenticate GitHub CLI with the default GITHUB_TOKEN
-        gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
