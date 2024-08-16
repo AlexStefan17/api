@@ -67,26 +67,37 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Authenticate GitHub CLI with the default GITHUB_TOKEN
+        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
         # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
-        
+
         # Create a pull request
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
+        # Authenticate GitHub CLI with the PAT
+        echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
+
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        # Approve the PR
+        
+        # Approve the PR using the PAT
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Authenticate GitHub CLI with the default GITHUB_TOKEN
+        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        
         # Merge the PR
         gh pr merge $PR_NUMBER --squash --delete-branch
