@@ -21,6 +21,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install gh -y
+
     - name: Update Configuration File Manually
       run: |
         CONFIG_FILE="v3/config.php"
@@ -37,7 +42,7 @@ jobs:
         sed -i -e 's/^\s*\$server = /\/\/\$server = /' $CONFIG_FILE
 
         # Uncomment the line for the manual server
-        sed -i "s/\/\/\$server = '$manual_server';/\$server = '$manual_server';/" $CONFIG_FILE
+        sed -i "s/\/\/\$server = '$escaped_manual_server';/\$server = '$escaped_manual_server';/" $CONFIG_FILE
 
         # Create a new branch for the PR
         git checkout -b update-server-${{ github.sha }}
@@ -50,9 +55,8 @@ jobs:
 
     - name: Push changes and create PR
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
 
         # Create a pull request
@@ -60,18 +64,14 @@ jobs:
 
     - name: Approve PR
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        # Approve the PR
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        # Merge the PR
         gh pr merge $PR_NUMBER --squash --delete-branch
