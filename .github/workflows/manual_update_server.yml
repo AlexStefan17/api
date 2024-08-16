@@ -55,9 +55,8 @@ jobs:
         git push origin update-server-${{ github.sha }}
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
-        - name: Merge PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr merge --squash --delete-branch
-      
+    - name: Auto-merge PR
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr merge --auto --squash --delete-branch
