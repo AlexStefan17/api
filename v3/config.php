@@ -1,10 +1,10 @@
 <?php
 
 //main server
-$server = 'peviitor.go.ro';
+//$server = 'peviitor.go.ro';
 
 //QA server
-//$server = 'zimbor.go.ro:8985';
+$server = 'zimbor.go.ro:8985';
 
 //Ale's server
 //$server = '84.117.157.10:8983';
