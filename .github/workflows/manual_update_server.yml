@@ -48,28 +48,30 @@ jobs:
         git add $CONFIG_FILE
         git commit -m "Manually updated server to $manual_server"
 
-    - name: Push changes
+    - name: Push changes and create PR
       env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Use PAT_SECRET here if needed
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
       run: |
-        git push origin update-server-${{ github.sha }} || (git fetch origin && git rebase origin/update-server-${{ github.sha }} && git push --force origin update-server-${{ github.sha }})
+        # Push the changes to the new branch
+        git push origin update-server-${{ github.sha }}
 
-    - name: Create Pull Request
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Use PAT_SECRET here if needed
-      run: |
+        # Create a pull request
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
       env:
-        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use PAT_SECRET here if needed
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
       run: |
+        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        # Approve the PR
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
       env:
-        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use PAT_SECRET here if needed
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}  # Ensure the GitHub token is set here
       run: |
+        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        # Merge the PR
         gh pr merge $PR_NUMBER --squash --delete-branch
