@@ -50,9 +50,9 @@ jobs:
 
     - name: Push changes and create PR
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        git push origin update-server-${{ github.sha }}
+        git push origin update-server-${{ github.sha }} || (git fetch origin && git rebase origin/update-server-${{ github.sha }} && git push --force origin update-server-${{ github.sha }})
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
