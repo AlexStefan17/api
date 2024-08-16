@@ -50,14 +50,13 @@ jobs:
 
     - name: Push changes and create PR
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use the PAT instead of GITHUB_TOKEN
       run: |
         git push origin update-server-${{ github.sha }}
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
-    - name: Merge PR
+    - name: Auto-merge PR
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.PAT_TOKEN }}  # Use the PAT instead of GITHUB_TOKEN
       run: |
-        PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        gh pr merge $PR_NUMBER --squash --delete-branch
+        gh pr merge --squash --delete-branch --admin
