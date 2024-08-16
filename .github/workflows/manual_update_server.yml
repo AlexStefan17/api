@@ -47,18 +47,29 @@ jobs:
         # Create a new branch for the PR
         git checkout -b update-server-${{ github.sha }}
 
-        # Commit the changes
+        # Configure git user
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
+
+        # Add and commit the changes
         git add $CONFIG_FILE
         git commit -m "Manually updated server to $manual_server"
+
+    - name: Fetch and Rebase
+      run: |
+        # Fetch the latest changes from the remote
+        git fetch origin
+
+        # Rebase the new branch on top of the latest changes from the base branch (e.g., master)
+        git rebase origin/master || { echo 'Rebase failed'; exit 1; }
 
     - name: Push changes and create PR
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
-
+        
         # Create a pull request
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
@@ -66,12 +77,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        # Approve the PR
         gh pr review $PR_NUMBER --approve
 
     - name: Merge PR
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
+        # Merge the PR
         gh pr merge $PR_NUMBER --squash --delete-branch
