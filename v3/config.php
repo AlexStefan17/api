@@ -1,7 +1,7 @@
 <?php
 
 //main server
-////////////////////////////$server = 'zimbor.go.ro';
+//////////////////////////////$server = 'zimbor.go.ro';
 
 //QA server
 //$server = 'zimbor.go.ro:8985';
