@@ -21,6 +21,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install gh -y
+
     - name: Update Configuration File Manually
       run: |
         CONFIG_FILE="v3/config.php"
@@ -43,9 +48,18 @@ jobs:
         if ! cmp -s $CONFIG_FILE $BACKUP_FILE; then
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
+          git checkout -b update-server-${{ github.sha }}
           git add $CONFIG_FILE
           git commit -m "Manually updated server to $manual_server"
-          git push
+          git push origin update-server-${{ github.sha }}
         else
           echo "No changes made to the config file."
         fi
+
+    - name: Create and Merge Pull Request
+      run: |
+        # Create a pull request using GitHub CLI
+        gh pr create --title "Auto PR to update server" --body "This PR updates the server configuration to $manual_server." --head update-server-${{ github.sha }} --base master
+
+        # Merge the PR automatically
+        gh pr merge --auto --squash --delete-branch
