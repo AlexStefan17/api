@@ -21,11 +21,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Install GitHub CLI
-      run: |
-        sudo apt-get update
-        sudo apt-get install gh -y
-
     - name: Update Configuration File Manually
       run: |
         CONFIG_FILE="v3/config.php"
@@ -44,22 +39,24 @@ jobs:
         # Uncomment the line for the manual server
         sed -i "s/\/\/\$server = '$manual_server';/\$server = '$manual_server';/" $CONFIG_FILE
 
-        # Check if the configuration file has been updated
-        if ! cmp -s $CONFIG_FILE $BACKUP_FILE; then
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git checkout -b update-server-${{ github.sha }}
-          git add $CONFIG_FILE
-          git commit -m "Manually updated server to $manual_server"
-          git push origin update-server-${{ github.sha }}
-        else
-          echo "No changes made to the config file."
-        fi
+        # Create a new branch for the PR
+        git checkout -b update-server-${{ github.sha }}
 
-    - name: Create and Merge Pull Request
+        # Commit the changes
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+        git add $CONFIG_FILE
+        git commit -m "Manually updated server to $manual_server"
+
+    - name: Push changes and create PR
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Create a pull request using GitHub CLI
-        gh pr create --title "Auto PR to update server" --body "This PR updates the server configuration to $manual_server." --head update-server-${{ github.sha }} --base master
+        git push origin update-server-${{ github.sha }}
+        gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
-        # Merge the PR automatically
+    - name: Auto-merge PR
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
         gh pr merge --auto --squash --delete-branch
