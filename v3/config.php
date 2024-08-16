@@ -1,6 +1,9 @@
 <?php
 
 //main server
+//$server = 'zimbor.go.ro';
+
+//2nd server
 $server = 'peviitor.go.ro';
 
 //QA server
