@@ -55,22 +55,16 @@ jobs:
         git push origin update-server-${{ github.sha }}
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
-    - name: Add Reviewer to PR
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        gh pr review $PR_NUMBER --request "your-reviewer-username"
-
     - name: Approve PR
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-        gh pr review --approve $PR_NUMBER
+        gh pr review $PR_NUMBER --approve
 
-    - name: Auto-merge PR
+    - name: Merge PR
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
         gh pr merge $PR_NUMBER --squash --delete-branch
