@@ -67,13 +67,11 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Authenticate GitHub CLI with the default GITHUB_TOKEN
-        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
         # Push the changes to the new branch
         git push origin update-server-${{ github.sha }}
 
-        # Create a pull request
+        # Create a pull request using the default GITHUB_TOKEN
+        gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
         gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
     - name: Approve PR
@@ -81,7 +79,7 @@ jobs:
         PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       run: |
         # Authenticate GitHub CLI with the PAT
-        echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
+        gh auth login --with-token <<< "${{ secrets.PAT_TOKEN }}"
 
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
@@ -94,7 +92,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Authenticate GitHub CLI with the default GITHUB_TOKEN
-        echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+        gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
 
         # Retrieve the PR number
         PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
