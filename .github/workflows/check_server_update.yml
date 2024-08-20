@@ -83,6 +83,14 @@ jobs:
               git add $CONFIG_FILE
               git commit -m "Switched to $available_server"
               git push origin update-server-${{ github.sha }}
+
+              # Debug output
+              echo "Branches available:"
+              git branch -a
+
+              echo "Current branches:"
+              git branch -r
+
             else
               echo "No changes to commit."
               exit 0
@@ -95,6 +103,7 @@ jobs:
       - name: Create PR
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          echo "Creating PR from update-server-${{ github.sha }} to master..."
           gh pr create --title "Switch to $available_server" --body "This PR updates the server configuration to use $available_server." --head update-server-${{ github.sha }} --base master
 
       - name: Approve PR
@@ -104,6 +113,7 @@ jobs:
           echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
           PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
           if [ -n "$PR_NUMBER" ]; then
+            echo "Approving PR #$PR_NUMBER..."
             gh pr review $PR_NUMBER --approve
           else
             echo "No PR found to approve."
@@ -115,6 +125,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
           PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
           if [ -n "$PR_NUMBER" ]; then
+            echo "Merging PR #$PR_NUMBER..."
             gh pr merge $PR_NUMBER --squash --delete-branch
           else
             echo "No PR found to merge."
