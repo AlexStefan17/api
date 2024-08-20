@@ -76,20 +76,11 @@ jobs:
             sed -i 's/\$server = '\''peviitor.go.ro'\'';/\/\/\$server = '\''peviitor.go.ro'\'';/' $CONFIG_FILE
             sed -i "s/\/\/\$server = '$available_server';/\$server = '$available_server';/" $CONFIG_FILE
 
-            if ! cmp -s $CONFIG_FILE $CONFIG_FILE.bak; then
-              git checkout -b update-server-${{ github.sha }}
-              git config --global user.name "github-actions"
-              git config --global user.email "github-actions@github.com"
-              git add $CONFIG_FILE
-              git commit -m "Switched to $available_server"
-              git push origin update-server-${{ github.sha }}
-
-              # Debug output
-              echo "Branches available:"
-              git branch -a
-
-              echo "Current branches:"
-              git branch -r
+            git checkout -b update-server-${{ github.sha }}
+            git config --global user.name "github-actions"
+            git config --global user.email "github-actions@github.com"
+            git add $CONFIG_FILE
+            git commit -m "Manually updated server to $manual_server"
 
             else
               echo "No changes to commit."
@@ -100,11 +91,17 @@ jobs:
             exit 0
           fi
 
-      - name: Create PR
+      - name: Fetch and Rebase
         run: |
+          git fetch origin
+          git rebase origin/master || { echo 'Rebase failed'; exit 1; }
+
+      - name: Push changes and create PR
+        run: |
+          unset GH_TOKEN
+          git push origin update-server-${{ github.sha }}
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-          echo "Creating PR from update-server-${{ github.sha }} to master..."
-          gh pr create --title "Switch to $available_server" --body "This PR updates the server configuration to use $available_server." --head update-server-${{ github.sha }} --base master
+          gh pr create --title "Update server to $manual_server" --body "This PR updates the server configuration." --head update-server-${{ github.sha }} --base master
 
       - name: Approve PR
         env:
@@ -112,22 +109,11 @@ jobs:
         run: |
           echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
           PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Approving PR #$PR_NUMBER..."
-            gh pr review $PR_NUMBER --approve
-          else
-            echo "No PR found to approve."
-            exit 1
-          fi
+          gh pr review $PR_NUMBER --approve
 
       - name: Merge PR
         run: |
+          unset GH_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
           PR_NUMBER=$(gh pr list --head update-server-${{ github.sha }} --json number --jq '.[0].number')
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Merging PR #$PR_NUMBER..."
-            gh pr merge $PR_NUMBER --squash --delete-branch
-          else
-            echo "No PR found to merge."
-            exit 1
-          fi
+          gh pr merge $PR_NUMBER --squash --delete-branch
