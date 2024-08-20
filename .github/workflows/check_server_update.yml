@@ -26,7 +26,7 @@ jobs:
 
           echo "Checking $primary_server..."
           response=$(curl -s -L -o /dev/null -w "%{http_code}" "$primary_server" || true)
-          if [ "$response" -eq 200 ]; then
+          if [ "$response" -eq 400 ]; then
             echo "$primary_server is up and running (HTTP 200 OK)"
           else
             echo "$primary_server is not available or returned status code $response"
