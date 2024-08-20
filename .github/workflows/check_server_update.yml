@@ -64,7 +64,7 @@ jobs:
         id: update_config
         run: |
           CONFIG_FILE="v3/config.php"
-          if [ "$current_active_server" != "peviitor.go.ro" ] && [ -n "$available_server" ]; then
+          if [ "$current_active_server" != "viitor.go.ro" ] && [ -n "$available_server" ]; then
             if [ "$current_active_server" = "$available_server" ]; then
               echo "The current active server is $available_server. No changes needed."
               exit 0
