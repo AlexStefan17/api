@@ -9,23 +9,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Check out repo code
+    - name: Check out repository code
       uses: actions/checkout@v2
 
     - name: Set up PHP
       uses: shivammathur/setup-php@v2
       with:
         php-version: '8.1'
-        tools: phpunit # Ensure phpunit is available
-        coverage: xdebug # Enable xdebug for coverage
+        tools: phpunit, composer
+        coverage: xdebug
 
-    - name: Update dependencies
-      run: composer update --prefer-dist --no-progress
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest
 
-    - name: Run PHPUnit tests and generate report
+    - name: Run PHPUnit tests and generate coverage report
       run: vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report
 
-    - name: Archive coverage reports
+    - name: List coverage report files
+      run: ls -la coverage-report
+
+    - name: Upload coverage report
       uses: actions/upload-artifact@v2
       with:
         name: coverage-report
