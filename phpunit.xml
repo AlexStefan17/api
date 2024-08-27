@@ -8,7 +8,12 @@
 
     <coverage processUncoveredFiles="true">
         <include>
-            <directory suffix=".php">src</directory>
+            <directory suffix=".php">v0</directory>
+            <directory suffix=".php">v1</directory>
+            <directory suffix=".php">v3</directory>
+            <directory suffix=".php">v4</directory>
+            <directory suffix=".php">v5</directory>
+            <directory suffix=".php">v6</directory>
         </include>
     </coverage>
 </phpunit>
