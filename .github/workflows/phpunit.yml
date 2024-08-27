@@ -19,19 +19,25 @@ jobs:
         tools: phpunit, composer
         coverage: xdebug
 
-    - name: Check for Xdebug or PCOV
-      run: php -m | grep -E 'xdebug|pcov'
-
     - name: Install dependencies
       run: composer install --prefer-dist --no-progress
 
-    - name: Run PHPUnit tests and generate coverage report
-      run: vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report || { echo 'PHPUnit failed'; exit 1; }
+    - name: Check for Xdebug or PCOV
+      run: php -m | grep -E 'xdebug|pcov'
 
-    - name: List coverage report files
+    - name: Display PHP configuration
+      run: php -i | grep 'xdebug\|pcov'
+
+    - name: Run PHPUnit tests and generate coverage report
       run: |
-        echo "Listing files in coverage-report directory:"
-        ls -la coverage-report || { echo 'Coverage report directory does not exist'; exit 1; }
+        vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report || { echo 'PHPUnit failed'; exit 1; }
+        if [ -d "coverage-report" ]; then
+          echo "Coverage report directory exists:"
+          ls -la coverage-report
+        else
+          echo "Coverage report directory does not exist"
+          exit 1
+        fi
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v2
