@@ -19,6 +19,9 @@ jobs:
         tools: phpunit, composer
         coverage: xdebug
 
+    - name: Check for Xdebug or PCOV
+      run: php -m | grep -E 'xdebug|pcov'
+
     - name: Install dependencies
       run: composer install --prefer-dist --no-progress --no-suggest
 
