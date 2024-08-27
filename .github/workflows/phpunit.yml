@@ -22,8 +22,8 @@ jobs:
     - name: Install dependencies
       run: composer install --prefer-dist --no-progress
 
-    - name: Check for Xdebug or PCOV
-      run: php -m | grep -E 'xdebug|pcov'
+    - name: Check for Xdebug
+      run: php -m | grep 'xdebug'
 
     - name: Display PHP configuration
       run: php -i | grep 'xdebug\|pcov'
