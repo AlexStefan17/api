@@ -23,13 +23,15 @@ jobs:
       run: php -m | grep -E 'xdebug|pcov'
 
     - name: Install dependencies
-      run: composer install --prefer-dist --no-progress --no-suggest
+      run: composer install --prefer-dist --no-progress
 
     - name: Run PHPUnit tests and generate coverage report
-      run: vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report
+      run: vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report || { echo 'PHPUnit failed'; exit 1; }
 
     - name: List coverage report files
-      run: ls -la coverage-report
+      run: |
+        echo "Listing files in coverage-report directory:"
+        ls -la coverage-report || { echo 'Coverage report directory does not exist'; exit 1; }
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v2
