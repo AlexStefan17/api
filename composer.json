@@ -1,7 +1,7 @@
 {
-    "name": "vendor/project-name",
+    "name": "vendor/package-name", 
     "description": "Your project description",
-    "type": "project",
+    "type": "project", 
     "require": {
         "zircote/swagger-php": "^3.0"
     },
@@ -9,18 +9,18 @@
         "phpunit/phpunit": "^9",
         "phpstan/phpstan": "^1.0"
     },
+    "scripts": {
+        "post-install-cmd": [
+            "php artisan key:generate"
+        ]
+    },
     "autoload": {
         "psr-4": {
             "App\\": "src/"
         }
     },
-    "scripts": {
-        "test": "phpunit"
-    },
     "config": {
-        "preferred-install": "dist",
         "optimize-autoloader": true
     },
-    "minimum-stability": "stable",
-    "prefer-stable": true
+    "license": "MIT"
 }
