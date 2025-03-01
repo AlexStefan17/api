@@ -3,31 +3,39 @@ name: Run PHPUnit Tests
 on:
   pull_request:
     branches: [ master ]
-  workflow_dispatch:
-  
+
 jobs:
   run-tests:
     runs-on: ubuntu-latest
 
     steps:
     - name: Check out repo code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Set up PHP
       uses: shivammathur/setup-php@v2
       with:
         php-version: '8.1'
         tools: phpunit
-        coverage: xdebug
+        coverage: xdebug # Explicitly installs Xdebug 3.x
 
     - name: Update dependencies
       run: composer update --prefer-dist --no-progress
 
-    - name: Run PHPUnit tests and generate report
-      run: vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage-report
+    - name: Create coverage directory
+      run: mkdir -p coverage-report
 
-    - name: Verify coverage report directory
-      run: ls -la coverage-report/
+    - name: Run PHPUnit tests and generate report
+      run: |
+        vendor/bin/phpunit \
+          --configuration phpunit.xml \
+          --coverage-html ${{ github.workspace }}/coverage-report
+
+    - name: Debug directory structure
+      run: |
+        pwd
+        ls -la
+        ls -la coverage-report/
 
     - name: Archive coverage reports
       uses: actions/upload-artifact@v4
