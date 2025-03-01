@@ -54,15 +54,8 @@ jobs:
 
     - name: Upload coverage report (if available)
       if: success() || failure()  # Ensures the step runs even if tests fail
-      run: |
-        if [ -d "${{ github.workspace }}/coverage-report" ]; then
-          echo "Uploading coverage..."
-          mv ${{ github.workspace }}/coverage-report ${{ runner.temp }}/coverage-report
-        else
-          echo "No coverage report found."
-        fi
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: ${{ runner.temp }}/coverage-report/
+        path: ${{ github.workspace }}/coverage-report/
         if-no-files-found: warn  # Prevents hard failure
