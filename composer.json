@@ -1,6 +1,6 @@
 {
-    "name": "api",
-    "description": "api peviitor",
+    "name": "vendor/project-name",
+    "description": "Your project description",
     "type": "project",
     "require": {
         "zircote/swagger-php": "^3.0"
