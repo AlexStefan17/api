@@ -19,17 +19,10 @@ jobs:
         php-version: '8.1'
         tools: phpunit
         coverage: xdebug
-        ini-values: memory_limit=-1  # Prevent memory issues
+        ini-values: memory_limit=-1, xdebug.mode=coverage  # Ensure Xdebug is in coverage mode
 
-    - name: Check installed PHP extensions
-      run: php -m | grep -E 'xdebug|pcov' || echo "Coverage extension missing"
-
-    - name: Install PCOV if missing
-      run: |
-        if ! php -m | grep -q 'pcov'; then
-          pecl install pcov
-          echo "zend_extension=pcov.so" >> $GITHUB_ENV
-        fi
+    - name: Verify Xdebug is enabled
+      run: php -m | grep xdebug || echo "Xdebug not found!"
 
     - name: Update dependencies
       run: |
@@ -41,9 +34,6 @@ jobs:
 
     - name: Verify PHPUnit Configuration
       run: cat phpunit.xml || echo "phpunit.xml not found!"
-
-    - name: Run PHPUnit tests without coverage (debugging)
-      run: vendor/bin/phpunit --configuration phpunit.xml || true
 
     - name: Run PHPUnit tests with coverage
       run: |
