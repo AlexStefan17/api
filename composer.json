@@ -1,13 +1,13 @@
 {
     "name": "api",
-    "description": "Peviitor api",
+    "description": "api peviitor",
     "type": "project",
     "require": {
         "zircote/swagger-php": "^3.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^9",
-        "phpstan/phpstan": "^1.0"   // Optional, for static analysis
+        "phpstan/phpstan": "^1.0"
     },
     "autoload": {
         "psr-4": {
