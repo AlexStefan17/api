@@ -23,7 +23,7 @@ jobs:
 
     - name: Update dependencies
       run: |
-        composer validate
+        composer validate --no-check-publish
         composer update --prefer-dist --no-progress
 
     - name: Create coverage directory
