@@ -6,16 +6,17 @@
         </testsuite>
     </testsuites>
 
-    <!-- Adăugăm configurarea pentru acoperirea codului -->
+    <!-- Add coverage configuration -->
     <coverage processUncoveredFiles="true">
         <include>
             <directory suffix=".php">src</directory>
         </include>
+        <!-- Exclude files or directories from coverage report if needed -->
+        <!--
+        <exclude>
+            <directory>src/ExcludeThisDirectory</directory>
+        </exclude>
+        -->
     </coverage>
 
-    <!-- Configurații pentru logging -->
-    <logging>
-        <!-- Make sure to use absolute path for the coverage report -->
-        <log type="coverage-html" target="${working_dir}/coverage-report" />
-    </logging>
 </phpunit>
