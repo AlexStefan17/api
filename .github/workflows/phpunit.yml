@@ -36,12 +36,18 @@ jobs:
         composer validate --no-check-publish
         composer update --prefer-dist --no-progress
 
+    - name: Create coverage directory
+      run: mkdir -p ${{ github.workspace }}/coverage-report && chmod -R 777 ${{ github.workspace }}/coverage-report
+
+    - name: Verify PHPUnit Configuration
+      run: cat phpunit.xml || echo "phpunit.xml not found!"
+
     - name: Run PHPUnit tests without coverage (debugging)
       run: vendor/bin/phpunit --configuration phpunit.xml || true
 
     - name: Run PHPUnit tests with coverage
       run: |
-        vendor/bin/phpunit --configuration phpunit.xml --coverage-html ${{ github.workspace }}/coverage-report || true
+        vendor/bin/phpunit --configuration phpunit.xml --coverage-html=${{ github.workspace }}/coverage-report || true
 
     - name: Debug workspace and coverage directory
       run: |
