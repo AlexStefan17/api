@@ -2,21 +2,19 @@
 <phpunit bootstrap="vendor/autoload.php" colors="true" stopOnFailure="false">
     <testsuites>
         <testsuite name="Application Test Suite">
-            <directory>unitTest</directory>
+            <directory>unitTest</directory> <!-- Adjust if your test directory is different -->
         </testsuite>
     </testsuites>
 
     <!-- Add coverage configuration -->
     <coverage processUncoveredFiles="true">
         <include>
-            <directory suffix=".php">src</directory>
+            <directory suffix=".php">src</directory> <!-- Your source directory -->
         </include>
         <!-- Exclude files or directories from coverage report if needed -->
-        <!--
-        <exclude>
+        <!--<exclude>
             <directory>src/ExcludeThisDirectory</directory>
-        </exclude>
-        -->
+        </exclude>-->
     </coverage>
 
 </phpunit>
