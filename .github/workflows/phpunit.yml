@@ -3,7 +3,7 @@ name: Run PHPUnit Tests
 on:
   pull_request:
     branches: [ master ]
-  workflow_dispatch:
+  workflow_dispatch:  # 👈 Allows manual triggering
 
 jobs:
   run-tests:
@@ -16,29 +16,25 @@ jobs:
     - name: Set up PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.1'
+        php-version: ${{ github.event.inputs.php_version || '8.1' }}  # 👈 Dynamic PHP version
         tools: phpunit
-        coverage: xdebug # Explicitly installs Xdebug 3.x
+        coverage: ${{ (github.event.inputs.enable_coverage != false) && 'xdebug' || 'none' }}  # 👈 Conditional Xdebug
 
     - name: Update dependencies
       run: composer update --prefer-dist --no-progress
 
     - name: Create coverage directory
-      run: mkdir -p coverage-report
+      if: ${{ github.event.inputs.enable_coverage != false }}  # 👈 Skip if coverage disabled
+      run: mkdir -p coverage-report && chmod 777 coverage-report
 
-    - name: Run PHPUnit tests and generate report
+    - name: Run PHPUnit tests
       run: |
         vendor/bin/phpunit \
           --configuration phpunit.xml \
-          --coverage-html ${{ github.workspace }}/coverage-report
+          ${{ (github.event.inputs.enable_coverage != false) && '--coverage-html coverage-report' || '' }}  # 👈 Conditional coverage
 
-    - name: Debug directory structure
-      run: |
-        pwd
-        ls -la
-        ls -la coverage-report/
-
-    - name: Archive coverage reports
+    - name: Upload coverage report
+      if: ${{ github.event.inputs.enable_coverage != false }}  # 👈 Skip upload if no coverage
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
