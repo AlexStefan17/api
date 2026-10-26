@@ -1,0 +1,137 @@
+name: PEviitor PHP and Solr
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install PHP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl php-mbstring
+          php -v
+
+      - name: Check PHP syntax
+        run: |
+          php -l util/solr.php
+          php -l util/loadEnv.php
+
+      - name: Start Apache Solr
+        run: |
+          docker run -d \
+            --name solr \
+            -p 127.0.0.1:8983:8983 \
+            solr:9 solr-precreate job
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS \
+              http://127.0.0.1:8983/solr/admin/info/system \
+              > /dev/null; then
+              echo "Solr is ready"
+              break
+            fi
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "Solr failed to start in time"
+              docker logs solr
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          docker exec solr bin/solr create -c company
+
+          for core in job company; do
+            for attempt in $(seq 1 30); do
+              if curl -fsS \
+                "http://127.0.0.1:8983/solr/$core/select?q=*:*&rows=0" \
+                > /dev/null; then
+                echo "Core '$core' is ready"
+                break
+              fi
+
+              if [ "$attempt" -eq 30 ]; then
+                echo "Core '$core' did not become ready"
+                docker logs solr
+                exit 1
+              fi
+
+              sleep 1
+            done
+          done
+
+      - name: Configure connection
+        run: |
+          # The API loads api.env from the repository root.
+          cat > api.env <<'EOF'
+          SOLR_SERVER=localhost:8983
+          LOCAL_SERVER=localhost:8983
+          PROTOCOL=http
+          SOLR_USER=
+          SOLR_PASS=
+          EOF
+
+      - name: Start PHP
+        run: |
+          php -S 127.0.0.1:8000 -t . \
+            > /tmp/php.log 2>&1 &
+          echo $! > /tmp/php.pid
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/ > /dev/null; then
+              echo "PHP is ready"
+              break
+            fi
+
+            if [ "$attempt" -eq 30 ]; then
+              echo "PHP failed to start"
+              cat /tmp/php.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+      - name: Test services
+        run: |
+          set -euo pipefail
+
+          for core in job company; do
+            curl -fsS \
+              "http://127.0.0.1:8983/solr/$core/select?q=*:*&rows=0" \
+              > /dev/null
+            echo "Solr core '$core' responds"
+          done
+
+          curl -fsS http://127.0.0.1:8000/ > /dev/null
+          echo "Documentation page responds"
+
+          health=$(curl -fsSL http://127.0.0.1:8000/v1/health/)
+          echo "v1/health: $health"
+
+          if ! echo "$health" | grep -q '"status":"pass"'; then
+            echo "Health check failed"
+            exit 1
+          fi
+
+          echo "All basic tests passed!"
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "--- PHP log ---"
+          cat /tmp/php.log 2>/dev/null || true
+
+          echo "--- Solr log ---"
+          docker logs solr 2>/dev/null || true
