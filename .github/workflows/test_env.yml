@@ -31,7 +31,7 @@ jobs:
           docker run -d \
             --name solr \
             -p 127.0.0.1:8983:8983 \
-            solr:9 solr-precreate job
+            solr:9
 
           for attempt in $(seq 1 60); do
             if curl -fsS \
@@ -50,6 +50,20 @@ jobs:
             sleep 2
           done
 
+          # The job core is created from the schema captured from the source
+          # core, so the uniqueKey (url) and field types match production.
+          # The company core only has to exist for /v1/total/.
+          docker exec solr mkdir -p /var/solr/configsets
+          docker exec solr cp -r \
+            /opt/solr/server/solr/configsets/_default \
+            /var/solr/configsets/peviitor
+          docker cp tests/test-data/performance/job.schema.xml \
+            solr:/var/solr/configsets/peviitor/conf/managed-schema.xml
+          docker exec -u 0 solr \
+            chown -R solr:solr /var/solr/configsets/peviitor
+
+          docker exec solr bin/solr create \
+            -c job -d /var/solr/configsets/peviitor
           docker exec solr bin/solr create -c company
 
           for core in job company; do
@@ -71,107 +85,36 @@ jobs:
             done
           done
 
-      - name: Seed local Solr with jobs from PROD
+      - name: Load jobs from the migration fixture
         env:
-          PROD_SERVER: ${{ secrets.PROD_SERVER }}
-          PROD_SOLR_USER: ${{ secrets.USERNAME_SOLR }}
-          PROD_SOLR_PASS: ${{ secrets.PASSWORD_SOLR }}
-          PROD_SOLR_PROTOCOL: https
           LOCAL_SOLR_URL: http://127.0.0.1:8983/solr
-          PAGE_SIZE: "1000"
-          # 0 = copy every job. Set a lower value to speed up the workflow.
-          MAX_JOBS: "0"
+          FIXTURE: tests/test-data/performance/job.json.gz
         run: |
           set -euo pipefail
 
-          prod_server="${PROD_SERVER:-solr.peviitor.ro}"
-          prod_server="${prod_server#http://}"
-          prod_server="${prod_server#https://}"
-          prod_server="${prod_server%/}"
-          prod_base="${PROD_SOLR_PROTOCOL:-https}://${prod_server}/solr"
+          # The fixture is a snapshot of the production job core. It is
+          # committed to the repository so this workflow does not depend on
+          # PROD Solr (or its credentials) at all. Refresh it with
+          # local_environment/Linux/backup_zimbor.sh in the PEviitor fork.
+          gunzip -c "$FIXTURE" > /tmp/job.json
+          expected=$(python3 -c '
+          import json
 
-          # PROD currently uses the default Solr credentials; the secrets can
-          # override them once credentials are rotated.
-          prod_user="${PROD_SOLR_USER:-solr}"
-          prod_pass="${PROD_SOLR_PASS:-SolrRocks}"
-
-          fetch_page() {
-            local start="$1"
-            local rows="$2"
-
-            curl -fsS -u "$prod_user:$prod_pass" \
-              --get \
-              --data-urlencode "q=*:*" \
-              --data-urlencode "wt=json" \
-              --data-urlencode "rows=$rows" \
-              --data-urlencode "start=$start" \
-              "$prod_base/job/select"
-          }
-
-          echo "Reading job count from $prod_base/job/select"
-          total=$(curl -fsS -u "$prod_user:$prod_pass" \
-            --get \
-            --data-urlencode "q=*:*" \
-            --data-urlencode "wt=json" \
-            --data-urlencode "rows=0" \
-            "$prod_base/job/select" \
-            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
-          echo "PROD has $total jobs"
-
-          if [ "$MAX_JOBS" -gt 0 ] && [ "$total" -gt "$MAX_JOBS" ]; then
-            total="$MAX_JOBS"
-            echo "Capping the copy at $total jobs (MAX_JOBS)"
-          fi
-
-          # Start from a clean local core so reruns stay deterministic.
-          curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data '{"delete":{"query":"*:*"}}' \
-            "$LOCAL_SOLR_URL/job/update?commit=true" > /dev/null
-
-          start=0
-          while [ "$start" -lt "$total" ]; do
-            remaining=$((total - start))
-            rows=$PAGE_SIZE
-            if [ "$remaining" -lt "$rows" ]; then
-              rows=$remaining
-            fi
-
-            docs=$(fetch_page "$start" "$rows" | python3 -c '
-          import json, sys
-
-          docs = json.load(sys.stdin)["response"]["docs"]
-          for doc in docs:
-              # Solr-internal fields must not be re-indexed in the local core.
-              doc.pop("_version_", None)
-              doc.pop("_root_", None)
-          json.dump(docs, sys.stdout)
+          with open("/tmp/job.json") as handle:
+              print(len(json.load(handle)))
           ')
-
-            if [ "$docs" = "[]" ]; then
-              echo "PROD returned no documents at start=$start; stopping"
-              break
-            fi
-
-            printf '%s' "$docs" \
-              | curl -fsS -X POST -H 'Content-Type: application/json' \
-                  --data-binary @- \
-                  "$LOCAL_SOLR_URL/job/update?commitWithin=1000&overwrite=true&wt=json" \
-                  > /dev/null
-
-            start=$((start + rows))
-            echo "Copied $start / $total jobs"
-          done
+          echo "Fixture contains $expected jobs"
 
           curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data '{"commit":{}}' \
-            "$LOCAL_SOLR_URL/job/update" > /dev/null
+            --data-binary @/tmp/job.json \
+            "$LOCAL_SOLR_URL/job/update?commit=true" > /dev/null
 
           local_total=$(curl -fsS "$LOCAL_SOLR_URL/job/select?q=*:*&rows=0&wt=json" \
             | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
           echo "Local job core now contains $local_total documents"
 
-          if [ "$local_total" -lt 1 ]; then
-            echo "ERROR: no jobs were copied from PROD Solr"
+          if [ "$local_total" -ne "$expected" ]; then
+            echo "ERROR: indexed $local_total of $expected jobs"
             exit 1
           fi
 
@@ -223,7 +166,7 @@ jobs:
           echo "Local job core contains $jobs documents"
 
           if [ "$jobs" -lt 1 ]; then
-            echo "Local job core is empty; PROD migration did not populate it"
+            echo "Local job core is empty; the fixture did not populate it"
             exit 1
           fi
 
