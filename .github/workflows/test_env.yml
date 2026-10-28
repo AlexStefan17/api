@@ -71,6 +71,110 @@ jobs:
             done
           done
 
+      - name: Seed local Solr with jobs from PROD
+        env:
+          PROD_SERVER: ${{ secrets.PROD_SERVER }}
+          PROD_SOLR_USER: ${{ secrets.USERNAME_SOLR }}
+          PROD_SOLR_PASS: ${{ secrets.PASSWORD_SOLR }}
+          PROD_SOLR_PROTOCOL: https
+          LOCAL_SOLR_URL: http://127.0.0.1:8983/solr
+          PAGE_SIZE: "1000"
+          # 0 = copy every job. Set a lower value to speed up the workflow.
+          MAX_JOBS: "0"
+        run: |
+          set -euo pipefail
+
+          prod_server="${PROD_SERVER:-solr.peviitor.ro}"
+          prod_server="${prod_server#http://}"
+          prod_server="${prod_server#https://}"
+          prod_server="${prod_server%/}"
+          prod_base="${PROD_SOLR_PROTOCOL:-https}://${prod_server}/solr"
+
+          # PROD currently uses the default Solr credentials; the secrets can
+          # override them once credentials are rotated.
+          prod_user="${PROD_SOLR_USER:-solr}"
+          prod_pass="${PROD_SOLR_PASS:-SolrRocks}"
+
+          fetch_page() {
+            local start="$1"
+            local rows="$2"
+
+            curl -fsS -u "$prod_user:$prod_pass" \
+              --get \
+              --data-urlencode "q=*:*" \
+              --data-urlencode "wt=json" \
+              --data-urlencode "rows=$rows" \
+              --data-urlencode "start=$start" \
+              "$prod_base/job/select"
+          }
+
+          echo "Reading job count from $prod_base/job/select"
+          total=$(curl -fsS -u "$prod_user:$prod_pass" \
+            --get \
+            --data-urlencode "q=*:*" \
+            --data-urlencode "wt=json" \
+            --data-urlencode "rows=0" \
+            "$prod_base/job/select" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
+          echo "PROD has $total jobs"
+
+          if [ "$MAX_JOBS" -gt 0 ] && [ "$total" -gt "$MAX_JOBS" ]; then
+            total="$MAX_JOBS"
+            echo "Capping the copy at $total jobs (MAX_JOBS)"
+          fi
+
+          # Start from a clean local core so reruns stay deterministic.
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data '{"delete":{"query":"*:*"}}' \
+            "$LOCAL_SOLR_URL/job/update?commit=true" > /dev/null
+
+          start=0
+          while [ "$start" -lt "$total" ]; do
+            remaining=$((total - start))
+            rows=$PAGE_SIZE
+            if [ "$remaining" -lt "$rows" ]; then
+              rows=$remaining
+            fi
+
+            docs=$(fetch_page "$start" "$rows" | python3 -c '
+          import json, sys
+
+          docs = json.load(sys.stdin)["response"]["docs"]
+          for doc in docs:
+              # Solr-internal fields must not be re-indexed in the local core.
+              doc.pop("_version_", None)
+              doc.pop("_root_", None)
+          json.dump(docs, sys.stdout)
+          ')
+
+            if [ "$docs" = "[]" ]; then
+              echo "PROD returned no documents at start=$start; stopping"
+              break
+            fi
+
+            printf '%s' "$docs" \
+              | curl -fsS -X POST -H 'Content-Type: application/json' \
+                  --data-binary @- \
+                  "$LOCAL_SOLR_URL/job/update?commitWithin=1000&overwrite=true&wt=json" \
+                  > /dev/null
+
+            start=$((start + rows))
+            echo "Copied $start / $total jobs"
+          done
+
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data '{"commit":{}}' \
+            "$LOCAL_SOLR_URL/job/update" > /dev/null
+
+          local_total=$(curl -fsS "$LOCAL_SOLR_URL/job/select?q=*:*&rows=0&wt=json" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
+          echo "Local job core now contains $local_total documents"
+
+          if [ "$local_total" -lt 1 ]; then
+            echo "ERROR: no jobs were copied from PROD Solr"
+            exit 1
+          fi
+
       - name: Configure connection
         run: |
           # The API loads api.env from the repository root.
@@ -114,6 +218,15 @@ jobs:
             echo "Solr core '$core' responds"
           done
 
+          jobs=$(curl -fsS "http://127.0.0.1:8983/solr/job/select?q=*:*&rows=0&wt=json" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
+          echo "Local job core contains $jobs documents"
+
+          if [ "$jobs" -lt 1 ]; then
+            echo "Local job core is empty; PROD migration did not populate it"
+            exit 1
+          fi
+
           curl -fsS http://127.0.0.1:8000/ > /dev/null
           echo "Documentation page responds"
 
@@ -124,6 +237,33 @@ jobs:
             echo "Health check failed"
             exit 1
           fi
+
+          # GET /v1/total/ reads both the job and company cores.
+          total=$(curl -fsSL http://127.0.0.1:8000/v1/total/)
+          echo "v1/total: $total"
+
+          jobs_total=$(printf '%s' "$total" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          print(data["total"]["jobs"])
+          ')
+          echo "v1/total reports $jobs_total jobs"
+
+          if [ "$jobs_total" -lt 1 ]; then
+            echo "v1/total reported no jobs"
+            exit 1
+          fi
+
+          # GET /v1/random/ only returns 200 when at least one job exists.
+          random=$(curl -fsSL http://127.0.0.1:8000/v1/random/)
+          echo "v1/random: $random"
+
+          printf '%s' "$random" | python3 -c '
+          import json, sys
+          job = json.load(sys.stdin)
+          if not isinstance(job, dict) or "title" not in job:
+              raise SystemExit("v1/random did not return a job")
+          '
 
           echo "All basic tests passed!"
 
