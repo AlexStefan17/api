@@ -88,14 +88,15 @@ jobs:
       - name: Load jobs from the migration fixture
         env:
           LOCAL_SOLR_URL: http://127.0.0.1:8983/solr
-          FIXTURE: tests/test-data/performance/job.json.gz
+          FIXTURE: tests/test-data/performance/job-30k.json.gz
         run: |
           set -euo pipefail
 
-          # The fixture is a snapshot of the production job core. It is
-          # committed to the repository so this workflow does not depend on
-          # PROD Solr (or its credentials) at all. Refresh it with
-          # local_environment/Linux/backup_zimbor.sh in the PEviitor fork.
+          # The fixture is a 30,000-document subset of the production job
+          # core, committed so this workflow does not depend on PROD Solr
+          # (or its credentials) at all. The full snapshot is kept next to
+          # it; refresh both with local_environment/Linux/backup_zimbor.sh
+          # in the PEviitor fork.
           gunzip -c "$FIXTURE" > /tmp/job.json
           expected=$(python3 -c '
           import json
