@@ -10,6 +10,16 @@ on:
         options:
           - job-30k.json.gz
           - job-50k.json.gz
+      performance:
+        description: k6 performance test to run against the local stack
+        type: choice
+        default: smoke
+        options:
+          - none
+          - smoke
+          - stress
+          - spike
+          - soak
 
 permissions:
   contents: read
@@ -17,7 +27,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
 
     steps:
       - name: Check out the repository
@@ -140,7 +150,9 @@ jobs:
 
       - name: Start PHP
         run: |
-          php -S 127.0.0.1:8000 -t . \
+          # Without workers, php -S handles one request at a time and the load
+          # test measures the request queue instead of the endpoint.
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8000 -t . \
             > /tmp/php.log 2>&1 &
           echo $! > /tmp/php.pid
 
@@ -218,6 +230,55 @@ jobs:
           '
 
           echo "All basic tests passed!"
+
+      - name: Install k6
+        if: inputs.performance != 'none'
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 performance test
+        if: inputs.performance != 'none'
+        env:
+          BASE_URL: http://127.0.0.1:8000
+          ENDPOINT: /v1/total/
+          RESULTS_DIR: tests/performance/results
+        run: |
+          set -euo pipefail
+
+          test="${{ inputs.performance }}"
+
+          # stress and spike exist to find the breaking point: a failed
+          # threshold is the expected result, not a CI error.
+          case "$test" in
+            stress|spike) extra=--no-thresholds ;;
+            *)            extra= ;;
+          esac
+
+          ./tests/performance/run.sh "$test" $extra
+
+      - name: Publish performance summary
+        if: always() && inputs.performance != 'none'
+        run: |
+          file="tests/performance/results/${{ inputs.performance }}-summary.txt"
+
+          if [ ! -f "$file" ]; then
+            echo "No k6 summary was produced." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "## k6 ${{ inputs.performance }} (fixture: ${{ inputs.fixture }})"
+            echo '```'
+            cat "$file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload performance reports
+        if: always() && inputs.performance != 'none'
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-${{ inputs.performance }}-${{ inputs.fixture }}
+          path: tests/performance/results/
+          retention-days: 30
 
       - name: Show logs on failure
         if: failure()
