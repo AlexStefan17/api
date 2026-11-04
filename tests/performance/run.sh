@@ -75,4 +75,10 @@ if [ "${NO_HTML:-0}" != "1" ]; then
 fi
 
 cd "$API_DIR"
+
+# k6 does not create missing directories for the handleSummary outputs, and
+# the results directory is not tracked (only .gitkeep), so a fresh checkout
+# would otherwise lose every report.
+mkdir -p "$RESULTS_DIR"
+
 exec k6 run "$@" "$SCRIPT"

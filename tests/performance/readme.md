@@ -9,7 +9,7 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 |---|---|---|---|---|
 | `smoke.js` | smoke | 1 VU, constant | Does the endpoint work at all? | ~10s |
 | `baseline.js` | baseline | 0 → 10 VUs, 3m hold | Repeatable reference run to compare against | ~3m 20s |
-| `stress.js` | stress | 20 → 40 → 60 → 80 VUs | Find where the service stops meeting its SLOs | ~3m |
+| `stress.js` | stress | 50 → 100 → … → 300 VUs | Find where the service stops meeting its SLOs | ~4m 15s |
 | `soak.js` | soak | 10 VUs, 30m hold | Find leaks / degradation over time | ~31m |
 | `spike.js` | spike | 2 → 50 → 2 VUs | Survive a traffic burst and recover | ~1m 45s |
 
@@ -219,7 +219,7 @@ Per test type:
 |---|---|
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
 | `baseline.js` | `BASELINE_VUS` (10), `BASELINE_RAMP_UP` (10s), `BASELINE_DURATION` (3m), `BASELINE_RAMP_DOWN` (10s) |
-| `stress.js` | `STRESS_STEP_VUS` (20), `STRESS_PEAK_VUS` (80), `STRESS_RAMP` (10s), `STRESS_STEP_DURATION` (30s), `STRESS_RAMP_DOWN` (15s) |
+| `stress.js` | `STRESS_STEP_VUS` (50), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (10s), `STRESS_STEP_DURATION` (30s), `STRESS_RAMP_DOWN` (15s) |
 | `soak.js` | `SOAK_VUS` (10), `SOAK_RAMP_UP` (30s), `SOAK_DURATION` (30m), `SOAK_RAMP_DOWN` (15s) |
 | `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (50), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
@@ -258,6 +258,9 @@ instead.
 - **Thresholds fail while checks pass** — the endpoint works but is slower than
   the configured `P95_MS` / `P99_MS`. Re-run to confirm, then tune the threshold
   or investigate the service.
+- **`could not open 'tests/performance/results/...'`** — the results directory is
+  missing. Run the test through `run.sh` (it creates the directory) or create it
+  with `mkdir -p tests/performance/results` before calling `k6 run` directly.
 
 ## Notes
 
