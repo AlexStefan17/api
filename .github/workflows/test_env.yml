@@ -150,9 +150,9 @@ jobs:
 
       - name: Start PHP
         run: |
-          # Without workers, php -S handles one request at a time and the load
-          # test measures the request queue instead of the endpoint.
-          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8000 -t . \
+          # One worker on purpose: php -S serves a single request at a time,
+          # so the load tests exercise the request queue.
+          PHP_CLI_SERVER_WORKERS=1 php -S 127.0.0.1:8000 -t . \
             > /tmp/php.log 2>&1 &
           echo $! > /tmp/php.pid
 
