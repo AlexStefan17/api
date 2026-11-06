@@ -20,6 +20,14 @@ on:
           - stress
           - spike
           - soak
+      php_workers:
+        description: PHP built-in server workers
+        type: choice
+        default: '1'
+        options:
+          - '1'
+          - '2'
+          - '4'
 
 permissions:
   contents: read
@@ -157,10 +165,12 @@ jobs:
           EOF
 
       - name: Start PHP
+        env:
+          PHP_CLI_SERVER_WORKERS: ${{ inputs.php_workers }}
         run: |
-          # One worker on purpose: php -S serves a single request at a time,
-          # so the load tests exercise the request queue.
-          PHP_CLI_SERVER_WORKERS=1 php -S 127.0.0.1:8000 -t . \
+          # php -S serves one request per worker at a time; the php_workers
+          # input controls how much concurrency the load tests see.
+          php -S 127.0.0.1:8000 -t . \
             > /tmp/php.log 2>&1 &
           echo $! > /tmp/php.pid
 

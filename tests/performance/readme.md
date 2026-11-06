@@ -190,12 +190,12 @@ production. Trigger the workflow manually and pick the `performance` input:
 - `spike` — traffic burst and recovery
 - `soak` — 30m endurance run; the job timeout is 60m, so it is opt-in
 - `none` — only the functional checks
+- `php_workers` — PHP server concurrency (`1`, `2` or `4`)
 
 `stress` and `spike` run with `--no-thresholds`, because a failed threshold is
-the expected outcome of those tests. The workflow starts the API with a single
-PHP worker on purpose, so the load tests measure the request queue rather than
-the service ceiling; raise `PHP_CLI_SERVER_WORKERS` in the workflow if you want
-capacity numbers. Every run uploads
+the expected outcome of those tests. The `php_workers` input selects how many
+PHP workers serve the API; with one worker the load tests measure the request
+queue rather than the service ceiling. Every run uploads
 `tests/performance/results/` as the `performance-<type>-<fixture>` artifact:
 the artifact contains `<type>-report.html` with the dashboard charts, plus the
 JSON/TXT summaries. The text summary is also written to the workflow run page.
