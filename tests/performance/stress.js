@@ -8,11 +8,11 @@ import { preflight } from './lib/preflight.js';
 // level, so a FAIL here is the signal that the breaking point was reached, not
 // a broken test.
 
-const STEP_VUS = positiveIntFromEnv('STRESS_STEP_VUS', 50);
+const STEP_VUS = positiveIntFromEnv('STRESS_STEP_VUS', 25);
 const PEAK_VUS = positiveIntFromEnv('STRESS_PEAK_VUS', 300);
-const STEP_RAMP = __ENV.STRESS_RAMP || '10s';
-const STEP_DURATION = __ENV.STRESS_STEP_DURATION || '30s';
-const RAMP_DOWN = __ENV.STRESS_RAMP_DOWN || '15s';
+const STEP_RAMP = __ENV.STRESS_RAMP || '20s';
+const STEP_DURATION = __ENV.STRESS_STEP_DURATION || '2m';
+const RAMP_DOWN = __ENV.STRESS_RAMP_DOWN || '30s';
 
 function stressStages() {
   const stages = [];

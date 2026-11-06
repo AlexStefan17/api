@@ -9,7 +9,7 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 |---|---|---|---|---|
 | `smoke.js` | smoke | 1 VU, constant | Does the endpoint work at all? | ~10s |
 | `baseline.js` | baseline | 0 → 10 VUs, 3m hold | Repeatable reference run to compare against | ~3m 20s |
-| `stress.js` | stress | 50 → 100 → … → 300 VUs | Find where the service stops meeting its SLOs | ~4m 15s |
+| `stress.js` | stress | 25 → 50 → … → 300 VUs | Find where the service stops meeting its SLOs | ~28m 30s |
 | `soak.js` | soak | 10 VUs, 30m hold | Find leaks / degradation over time | ~31m |
 | `spike.js` | spike | 2 → 50 → 2 VUs | Survive a traffic burst and recover | ~1m 45s |
 
@@ -99,12 +99,15 @@ not stable and the baseline is not usable.
 
 Ramps past the expected load in steps. The thresholds are the normal service
 level, so a `FAIL` here means you found the breaking point, not that the test is
-broken. Adjust the step size and peak:
+broken. The defaults use 25-VU steps and 2m holds, so every level reaches a
+steady state before the next one (~28m30s total). Adjust the step size, hold and
+peak to match the capacity you want to explore:
 
 ```bash
+# quick profile: 50-VU steps, 30s holds
 ./tests/performance/run.sh stress \
-  -e STRESS_STEP_VUS=25 -e STRESS_PEAK_VUS=150 \
-  -e STRESS_STEP_DURATION=1m
+  -e STRESS_STEP_VUS=50 -e STRESS_PEAK_VUS=150 \
+  -e STRESS_STEP_DURATION=30s
 ```
 
 ## Soak
@@ -222,7 +225,7 @@ Per test type:
 |---|---|
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
 | `baseline.js` | `BASELINE_VUS` (10), `BASELINE_RAMP_UP` (10s), `BASELINE_DURATION` (3m), `BASELINE_RAMP_DOWN` (10s) |
-| `stress.js` | `STRESS_STEP_VUS` (50), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (10s), `STRESS_STEP_DURATION` (30s), `STRESS_RAMP_DOWN` (15s) |
+| `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `soak.js` | `SOAK_VUS` (10), `SOAK_RAMP_UP` (30s), `SOAK_DURATION` (30m), `SOAK_RAMP_DOWN` (15s) |
 | `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (50), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
