@@ -193,7 +193,7 @@ production. Trigger the workflow manually and pick the `performance` input:
 - `spike` — traffic burst and recovery
 - `soak` — 30m endurance run; the job timeout is 60m, so it is opt-in
 - `none` — only the functional checks
-- `php_workers` — PHP server concurrency (`1`, `2` or `4`)
+- `php_workers` — PHP server concurrency (`1`, `2`, `3` or `4`)
 
 `stress` and `spike` run with `--no-thresholds`, because a failed threshold is
 the expected outcome of those tests. The `php_workers` input selects how many
