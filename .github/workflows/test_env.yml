@@ -33,6 +33,14 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+      - name: Show runner resources
+        run: |
+          nproc
+          lscpu | grep -E 'Model name|CPU\(s\)|Thread|Core' || true
+          free -h
+          df -h /
+          cat /etc/os-release
+
       - name: Install PHP
         run: |
           sudo apt-get update
