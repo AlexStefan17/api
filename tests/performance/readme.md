@@ -10,8 +10,8 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 | `smoke.js` | smoke | 1 VU, constant | Does the endpoint work at all? | ~10s |
 | `baseline.js` | baseline | 0 → 10 VUs, 3m hold | Repeatable reference run to compare against | ~3m 20s |
 | `stress.js` | stress | 25 → 50 → … → 300 VUs | Find where the service stops meeting its SLOs | ~28m 30s |
-| `soak.js` | soak | 10 VUs, 30m hold | Find leaks / degradation over time | ~31m |
-| `spike.js` | spike | 2 → 50 → 2 VUs | Survive a traffic burst and recover | ~1m 45s |
+| `soak.js` | soak | 90 req/s, 30m | Find leaks / degradation over time | ~30m 30s |
+| `spike.js` | spike | 2 → 200 → 2 VUs | Survive a traffic burst and recover | ~1m 55s |
 
 Run the smoke test first, then baseline, then the others.
 
@@ -95,6 +95,11 @@ Then compare `baseline-summary.json` from the three directories: p95, p99,
 requests/s and failure rate should be close. If they are not, the environment is
 not stable and the baseline is not usable.
 
+On the shared 4-vCPU CI runner, 10 VUs already saturate the PHP workers: the
+endpoint serves ~183 req/s with one worker and ~389 req/s with four. Treat this
+default as a saturated reference; for a controlled load, use `soak.js` with
+`SOAK_RATE`.
+
 ## Stress
 
 Ramps past the expected load in steps. The thresholds are the normal service
@@ -112,22 +117,30 @@ peak to match the capacity you want to explore:
 
 ## Soak
 
-Moderate load for a long time. Compare the first minutes with the last minutes
-of the run: if latency and error rate stay flat, the service is stable.
+A fixed request rate for a long time. The load is set with `SOAK_RATE`
+(requests/s), not with VUs, so it does not silently drop when the service slows
+down. Compare the first minutes with the last minutes of the run: if latency and
+error rate stay flat, the service is stable.
 
 ```bash
+# default 90 req/s ≈ 50% of the ~183 req/s measured with one worker
 ./tests/performance/run.sh soak
-./tests/performance/run.sh soak -e SOAK_DURATION=2h -e SOAK_VUS=20
+# 190 req/s ≈ 50% of the ~389 req/s measured with four workers
+./tests/performance/run.sh soak -e SOAK_RATE=190 -e SOAK_DURATION=2h
 ```
+
+If k6 reports `dropped_iterations`, the service could not keep up with the
+requested rate; lower `SOAK_RATE` or raise `SOAK_MAX_VUS`.
 
 ## Spike
 
 Jumps from low to high load and back. `SPIKE_VUS` should be clearly above
-`SPIKE_BASE_VUS`:
+`SPIKE_BASE_VUS` and high enough to be meaningful for the measured capacity
+(~183 req/s with one worker, ~389 req/s with four):
 
 ```bash
 ./tests/performance/run.sh spike
-./tests/performance/run.sh spike -e SPIKE_BASE_VUS=2 -e SPIKE_VUS=100
+./tests/performance/run.sh spike -e SPIKE_BASE_VUS=5 -e SPIKE_VUS=300
 ```
 
 ## Reports
@@ -191,7 +204,7 @@ production. Trigger the workflow manually and pick the `performance` input:
 - `smoke` (default) — quick check that the endpoint responds
 - `stress` — find the breaking point
 - `spike` — traffic burst and recovery
-- `soak` — 30m endurance run; the job timeout is 60m, so it is opt-in
+- `soak` — 30m endurance run at 90 req/s; the job timeout is 60m, so it is opt-in
 - `none` — only the functional checks
 - `php_workers` — PHP server concurrency (`1`, `2`, `3` or `4`)
 
@@ -226,8 +239,8 @@ Per test type:
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
 | `baseline.js` | `BASELINE_VUS` (10), `BASELINE_RAMP_UP` (10s), `BASELINE_DURATION` (3m), `BASELINE_RAMP_DOWN` (10s) |
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
-| `soak.js` | `SOAK_VUS` (10), `SOAK_RAMP_UP` (30s), `SOAK_DURATION` (30m), `SOAK_RAMP_DOWN` (15s) |
-| `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (50), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
+| `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (10), `SOAK_MAX_VUS` (200) |
+| `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (200), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once
 you have a baseline from your own machine.
@@ -270,9 +283,10 @@ instead.
 
 ## Notes
 
-- `php -S` is single-threaded by default. For real measurements start it with
-  `PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8000 -t .`, otherwise you measure
-  the PHP request queue rather than the endpoint.
+- `php -S` is single-threaded by default. On the shared 4-vCPU CI runner, one
+  worker serves ~183 req/s and four workers ~389 req/s; past that, extra workers
+  mostly add contention and Solr timeouts rather than throughput. For real
+  measurements use a dedicated environment, ideally with php-fpm and OPcache.
 - The scenarios are **closed-loop** (`ramping-vus`): VUs are concurrent users,
   not a fixed request rate. Throughput follows from latency. For a fixed RPS
   target, add a `constant-arrival-rate` executor.

@@ -9,7 +9,7 @@ import { preflight } from './lib/preflight.js';
 // recovers afterwards. Keep SPIKE_VUS clearly above SPIKE_BASE_VUS.
 
 const BASE_VUS = positiveIntFromEnv('SPIKE_BASE_VUS', 2);
-const SPIKE_VUS = positiveIntFromEnv('SPIKE_VUS', 50);
+const SPIKE_VUS = positiveIntFromEnv('SPIKE_VUS', 200);
 const WARMUP = __ENV.SPIKE_WARMUP || '10s';
 const HOLD = __ENV.SPIKE_HOLD || '30s';
 const RAMP = __ENV.SPIKE_RAMP || '5s';
