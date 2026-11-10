@@ -8,8 +8,9 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 | Script | Type | Default profile | Purpose | Duration |
 |---|---|---|---|---|
 | `smoke.js` | smoke | 1 VU, constant | Does the endpoint work at all? | ~10s |
-| `baseline.js` | baseline | 0 → 10 VUs, 3m hold | Repeatable reference run to compare against | ~3m 20s |
+| `baseline.js` | baseline | 90 req/s, 3m | Repeatable reference run to compare against | ~3m 30s |
 | `stress.js` | stress | 25 → 50 → … → 300 VUs | Find where the service stops meeting its SLOs | ~28m 30s |
+| `stress_rps.js` | stress (RPS) | 25 → 50 → … → 400 req/s | Find the max request rate before the SLO breaks | ~20m 20s |
 | `soak.js` | soak | 90 req/s, 30m | Find leaks / degradation over time | ~30m 30s |
 | `spike.js` | spike | 2 → 200 → 2 VUs | Survive a traffic burst and recover | ~1m 55s |
 
@@ -95,10 +96,10 @@ Then compare `baseline-summary.json` from the three directories: p95, p99,
 requests/s and failure rate should be close. If they are not, the environment is
 not stable and the baseline is not usable.
 
-On the shared 4-vCPU CI runner, 10 VUs already saturate the PHP workers: the
-endpoint serves ~183 req/s with one worker and ~389 req/s with four. Treat this
-default as a saturated reference; for a controlled load, use `soak.js` with
-`SOAK_RATE`.
+The default rate is 90 req/s, roughly 50% of the ~183 req/s measured with one
+worker; with four workers use `BASELINE_RATE=190` for a similar utilization.
+Because the load is an arrival rate, it does not drop when the service slows
+down, so results are comparable across runs.
 
 ## Stress
 
@@ -113,6 +114,22 @@ peak to match the capacity you want to explore:
 ./tests/performance/run.sh stress \
   -e STRESS_STEP_VUS=50 -e STRESS_PEAK_VUS=150 \
   -e STRESS_STEP_DURATION=30s
+```
+
+## Stress (RPS)
+
+Ramps the arrival rate (req/s) past the measured capacity. Unlike `stress.js`,
+which controls concurrent VUs, this keeps the offered load fixed, so it answers
+"at how many requests per second does the service miss its SLO?". If k6 reports
+`dropped_iterations`, it could not keep up even with `STRESS_RPS_MAX_VUS`.
+
+Defaults are 25 → 50 → … → 400 req/s with 1m holds (~20m20s). Adjust the step,
+hold and peak to the capacity you want to explore:
+
+```bash
+./tests/performance/run.sh stress_rps
+./tests/performance/run.sh stress_rps \
+  -e STRESS_RPS_PEAK=600 -e STRESS_RPS_MAX_VUS=2000
 ```
 
 ## Soak
@@ -202,16 +219,18 @@ runs the API locally, so the k6 scripts can run in CI without touching
 production. Trigger the workflow manually and pick the `performance` input:
 
 - `smoke` (default) — quick check that the endpoint responds
-- `stress` — find the breaking point
+- `baseline` — reference run at 90 req/s
+- `stress` — find the breaking point in VUs
+- `stress_rps` — find the maximum request rate before the SLO breaks
 - `spike` — traffic burst and recovery
 - `soak` — 30m endurance run at 90 req/s; the job timeout is 60m, so it is opt-in
 - `none` — only the functional checks
 - `php_workers` — PHP server concurrency (`1`, `2`, `3` or `4`)
 
-`stress` and `spike` run with `--no-thresholds`, because a failed threshold is
-the expected outcome of those tests. The `php_workers` input selects how many
-PHP workers serve the API; with one worker the load tests measure the request
-queue rather than the service ceiling. Every run uploads
+`stress`, `stress_rps` and `spike` run with `--no-thresholds`, because a failed
+threshold is the expected outcome of those tests. The `php_workers` input
+selects how many PHP workers serve the API; with one worker the load tests
+measure the request queue rather than the service ceiling. Every run uploads
 `tests/performance/results/` as the `performance-<type>-<fixture>` artifact:
 the artifact contains `<type>-report.html` with the dashboard charts, plus the
 JSON/TXT summaries. The text summary is also written to the workflow run page.
@@ -237,8 +256,9 @@ Per test type:
 | Script | Variables (defaults) |
 |---|---|
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
-| `baseline.js` | `BASELINE_VUS` (10), `BASELINE_RAMP_UP` (10s), `BASELINE_DURATION` (3m), `BASELINE_RAMP_DOWN` (10s) |
+| `baseline.js` | `BASELINE_RATE` (90), `BASELINE_DURATION` (3m), `BASELINE_PRE_ALLOCATED_VUS` (10), `BASELINE_MAX_VUS` (200) |
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
+| `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
 | `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (10), `SOAK_MAX_VUS` (200) |
 | `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (200), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
@@ -287,10 +307,14 @@ instead.
   worker serves ~183 req/s and four workers ~389 req/s; past that, extra workers
   mostly add contention and Solr timeouts rather than throughput. For real
   measurements use a dedicated environment, ideally with php-fpm and OPcache.
-- The scenarios are **closed-loop** (`ramping-vus`): VUs are concurrent users,
-  not a fixed request rate. Throughput follows from latency. For a fixed RPS
-  target, add a `constant-arrival-rate` executor.
+- Arrival-rate tests (`baseline`, `soak`, `stress_rps`) need enough `*_MAX_VUS`
+  to sustain the target rate. If k6 reports `dropped_iterations`, the service
+  could not keep up.
+- `smoke`, `stress` and `spike` are **closed-loop** (`constant-vus` /
+  `ramping-vus`): VUs are concurrent users, not a fixed request rate, so
+  throughput follows from latency. `baseline`, `soak` and `stress_rps` are
+  **open-loop** (`*-arrival-rate`): the requested RPS stays fixed.
 - Do not run load tests against production without coordinating with the owners;
   use local or staging.
-- `tests/performance/results/.gitkeep` keeps the output directory in git, because
-  k6 does not create missing directories. Generated files are git-ignored.
+- `run.sh` creates `tests/performance/results/` if it is missing; generated files
+  are git-ignored.

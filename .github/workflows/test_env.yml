@@ -17,7 +17,9 @@ on:
         options:
           - none
           - smoke
+          - baseline
           - stress
+          - stress_rps
           - spike
           - soak
       php_workers:
@@ -265,11 +267,11 @@ jobs:
 
           test="${{ inputs.performance }}"
 
-          # stress and spike exist to find the breaking point: a failed
-          # threshold is the expected result, not a CI error.
+          # stress, stress_rps and spike exist to find the breaking point: a
+          # failed threshold is the expected result, not a CI error.
           case "$test" in
-            stress|spike) extra=--no-thresholds ;;
-            *)            extra= ;;
+            stress|stress_rps|spike) extra=--no-thresholds ;;
+            *)                       extra= ;;
           esac
 
           ./tests/performance/run.sh "$test" $extra

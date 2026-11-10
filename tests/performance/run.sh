@@ -28,10 +28,11 @@ case "$TYPE" in
   smoke)      NAME=smoke;    SCRIPT="$SCRIPT_DIR/smoke.js" ;;
   baseline)   NAME=baseline; SCRIPT="$SCRIPT_DIR/baseline.js" ;;
   stress)     NAME=stress;   SCRIPT="$SCRIPT_DIR/stress.js" ;;
+  stress_rps) NAME=stress_rps; SCRIPT="$SCRIPT_DIR/stress_rps.js" ;;
   soak)       NAME=soak;     SCRIPT="$SCRIPT_DIR/soak.js" ;;
   spike)      NAME=spike;    SCRIPT="$SCRIPT_DIR/spike.js" ;;
   *)
-    echo "Usage: $0 {smoke|baseline|stress|soak|spike} [k6 options...]" >&2
+    echo "Usage: $0 {smoke|baseline|stress|stress_rps|soak|spike} [k6 options...]" >&2
     exit 1
     ;;
 esac
