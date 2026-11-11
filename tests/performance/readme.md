@@ -174,7 +174,8 @@ the equivalent of `locust --html`. Every run writes, inside
   other files.
 - `<test>-summary.json` — full k6 summary, for later analysis (pandas, jq, diffing runs)
 - `<test>-summary.txt` — compact human-readable summary, including the status
-  code distribution (2xx/3xx/4xx/5xx) to make failures obvious
+  code distribution (2xx/3xx/4xx/5xx) and `dropped_iterations` for arrival-rate
+  tests, to make failures obvious
 - the same summary is printed to stdout
 
 ```bash
@@ -235,6 +236,11 @@ measure the request queue rather than the service ceiling. Every run uploads
 the artifact contains `<type>-report.html` with the dashboard charts, plus the
 JSON/TXT summaries. The text summary is also written to the workflow run page.
 
+Before the selected test, the workflow runs a short 15s smoke warm-up (results
+in `/tmp/warmup`, thresholds disabled) so cold-start latency does not
+contaminate the percentiles. `baseline` runs with `continue-on-error`, so a
+threshold FAIL stays visible in the log without failing the job.
+
 ## Configuration
 
 Global settings, passed with `-e NAME=value`:
@@ -256,10 +262,10 @@ Per test type:
 | Script | Variables (defaults) |
 |---|---|
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
-| `baseline.js` | `BASELINE_RATE` (90), `BASELINE_DURATION` (3m), `BASELINE_PRE_ALLOCATED_VUS` (10), `BASELINE_MAX_VUS` (200) |
+| `baseline.js` | `BASELINE_RATE` (90), `BASELINE_DURATION` (3m), `BASELINE_PRE_ALLOCATED_VUS` (10), `BASELINE_MAX_VUS` (500) |
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
-| `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (10), `SOAK_MAX_VUS` (200) |
+| `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (10), `SOAK_MAX_VUS` (500) |
 | `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (200), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once

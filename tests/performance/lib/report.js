@@ -27,6 +27,8 @@ function buildTextSummary(testName, data) {
   const failed = metricValues(data, 'http_req_failed');
   const checks = metricValues(data, 'checks');
   const requests = metricValues(data, 'http_reqs');
+  const dropped = metricValues(data, 'dropped_iterations');
+  const droppedCount = dropped.count || 0;
   const status2xx = metricValues(data, 'http_status_2xx').count || 0;
   const status3xx = metricValues(data, 'http_status_3xx').count || 0;
   const status4xx = metricValues(data, 'http_status_4xx').count || 0;
@@ -50,6 +52,12 @@ function buildTextSummary(testName, data) {
     '',
     'Latency (ms)',
   ];
+
+  if (droppedCount > 0 || Object.keys(dropped).length > 0) {
+    const scheduled = (requests.count || 0) + droppedCount;
+    const droppedPct = scheduled > 0 ? (droppedCount / scheduled) * 100 : 0;
+    lines.splice(4, 0, `Dropped iterations: ${droppedCount} (${formatNumber(droppedPct)}%)`);
+  }
 
   ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'].forEach((name) => {
     lines.push(`  ${name.padEnd(5)} ${formatNumber(duration[name])}`);

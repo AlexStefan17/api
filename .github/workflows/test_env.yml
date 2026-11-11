@@ -256,8 +256,23 @@ jobs:
         if: inputs.performance != 'none'
         uses: grafana/setup-k6-action@v1
 
+      - name: Warm up the API
+        if: inputs.performance != 'none'
+        env:
+          BASE_URL: http://127.0.0.1:8000
+          ENDPOINT: /v1/total/
+          RESULTS_DIR: /tmp/warmup
+          NO_HTML: '1'
+          SMOKE_VUS: '2'
+          SMOKE_DURATION: 15s
+        run: |
+          # Short warm-up so cold-start latency does not contaminate the
+          # percentiles of the actual test. Results stay out of the artifact.
+          ./tests/performance/run.sh smoke --no-thresholds
+
       - name: Run k6 performance test
         if: inputs.performance != 'none'
+        continue-on-error: ${{ inputs.performance == 'baseline' }}
         env:
           BASE_URL: http://127.0.0.1:8000
           ENDPOINT: /v1/total/
