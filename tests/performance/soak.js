@@ -13,7 +13,7 @@ import { preflight } from './lib/preflight.js';
 
 const RATE = positiveIntFromEnv('SOAK_RATE', 90);
 const DURATION = __ENV.SOAK_DURATION || '30m';
-const PRE_ALLOCATED_VUS = positiveIntFromEnv('SOAK_PRE_ALLOCATED_VUS', 10);
+const PRE_ALLOCATED_VUS = positiveIntFromEnv('SOAK_PRE_ALLOCATED_VUS', 50);
 const MAX_VUS = positiveIntFromEnv('SOAK_MAX_VUS', 500);
 
 export const options = {

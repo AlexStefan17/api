@@ -13,7 +13,7 @@ import { preflight } from './lib/preflight.js';
 
 const RATE = positiveIntFromEnv('BASELINE_RATE', 90);
 const DURATION = __ENV.BASELINE_DURATION || '3m';
-const PRE_ALLOCATED_VUS = positiveIntFromEnv('BASELINE_PRE_ALLOCATED_VUS', 10);
+const PRE_ALLOCATED_VUS = positiveIntFromEnv('BASELINE_PRE_ALLOCATED_VUS', 50);
 const MAX_VUS = positiveIntFromEnv('BASELINE_MAX_VUS', 500);
 
 export const options = {

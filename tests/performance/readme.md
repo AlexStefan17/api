@@ -262,10 +262,10 @@ Per test type:
 | Script | Variables (defaults) |
 |---|---|
 | `smoke.js` | `SMOKE_VUS` (1), `SMOKE_DURATION` (10s) |
-| `baseline.js` | `BASELINE_RATE` (90), `BASELINE_DURATION` (3m), `BASELINE_PRE_ALLOCATED_VUS` (10), `BASELINE_MAX_VUS` (500) |
+| `baseline.js` | `BASELINE_RATE` (90), `BASELINE_DURATION` (3m), `BASELINE_PRE_ALLOCATED_VUS` (50), `BASELINE_MAX_VUS` (500) |
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
-| `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (10), `SOAK_MAX_VUS` (500) |
+| `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (50), `SOAK_MAX_VUS` (500) |
 | `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (200), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once
