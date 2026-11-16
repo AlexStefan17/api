@@ -15,7 +15,9 @@ const WARMUP = __ENV.SPIKE_WARMUP || '10s';
 const HOLD = __ENV.SPIKE_HOLD || '30s';
 const RAMP = __ENV.SPIKE_RAMP || '5s';
 const RECOVERY = __ENV.SPIKE_RECOVERY || '30s';
-const PRE_ALLOCATED_VUS = positiveIntFromEnv('SPIKE_PRE_ALLOCATED_VUS', 100);
+// Preallocate enough VUs for the burst: at 400 req/s and the observed ~3s
+// tail, the spike needs ~1.200 VUs. Preallocating avoids allocation drops.
+const PRE_ALLOCATED_VUS = positiveIntFromEnv('SPIKE_PRE_ALLOCATED_VUS', 1500);
 const MAX_VUS = positiveIntFromEnv('SPIKE_MAX_VUS', 2000);
 
 export const options = {

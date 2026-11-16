@@ -161,6 +161,10 @@ a realistic acceptance spike below capacity, use 180–270 req/s.
 ./tests/performance/run.sh spike -e SPIKE_RATE=600 -e SPIKE_MAX_VUS=3000
 ```
 
+The 1500 preallocated VUs cover the 400 req/s peak at the observed ~3s tail.
+If you raise `SPIKE_RATE`, size `SPIKE_PRE_ALLOCATED_VUS` at peak rate × worst
+latency, or set it equal to `SPIKE_MAX_VUS` to avoid allocation drops entirely.
+
 ## Reports
 
 Unlike Locust, k6 has no report file by default: it only prints a terminal
@@ -267,7 +271,7 @@ Per test type:
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
 | `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (50), `SOAK_MAX_VUS` (500) |
-| `spike.js` | `SPIKE_BASE_RATE` (90), `SPIKE_RATE` (400), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s), `SPIKE_PRE_ALLOCATED_VUS` (100), `SPIKE_MAX_VUS` (2000) |
+| `spike.js` | `SPIKE_BASE_RATE` (90), `SPIKE_RATE` (400), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s), `SPIKE_PRE_ALLOCATED_VUS` (1500), `SPIKE_MAX_VUS` (2000) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once
 you have a baseline from your own machine.
