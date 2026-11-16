@@ -12,7 +12,7 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 | `stress.js` | stress | 25 → 50 → … → 300 VUs | Find where the service stops meeting its SLOs | ~28m 30s |
 | `stress_rps.js` | stress (RPS) | 25 → 50 → … → 400 req/s | Find the max request rate before the SLO breaks | ~20m 20s |
 | `soak.js` | soak | 90 req/s, 30m | Find leaks / degradation over time | ~30m 30s |
-| `spike.js` | spike | 90 → 400 → 90 req/s | Survive a traffic burst and recover | ~1m 55s |
+| `spike.js` | spike | 90 → 270 → 90 req/s | Survive a traffic burst and recover | ~1m 55s |
 
 Run the smoke test first, then baseline, then the others.
 
@@ -152,18 +152,19 @@ requested rate; lower `SOAK_RATE` or raise `SOAK_MAX_VUS`.
 ## Spike
 
 Jumps from the baseline rate to a burst rate and back. The load is an arrival
-rate, so the burst is applied even when the service slows down. `SPIKE_RATE`
-defaults to 400 req/s, just above the ~389 req/s measured with four workers; for
-a realistic acceptance spike below capacity, use 180–270 req/s.
+rate, so the burst is applied even when the service slows down. The default
+spike is 90 → 270 req/s, below the ~389 req/s measured with four workers, so it
+is an acceptance spike rather than a breaking one. For a breaking spike, raise
+`SPIKE_RATE` and expect queueing/timeouts on the current `php -S` stack:
 
 ```bash
 ./tests/performance/run.sh spike
-./tests/performance/run.sh spike -e SPIKE_RATE=600 -e SPIKE_MAX_VUS=3000
+./tests/performance/run.sh spike -e SPIKE_RATE=400 -e SPIKE_PRE_ALLOCATED_VUS=1200
 ```
 
-The 1500 preallocated VUs cover the 400 req/s peak at the observed ~3s tail.
-If you raise `SPIKE_RATE`, size `SPIKE_PRE_ALLOCATED_VUS` at peak rate × worst
-latency, or set it equal to `SPIKE_MAX_VUS` to avoid allocation drops entirely.
+The 900 preallocated VUs cover 270 req/s at a ~3.3s tail. If you raise
+`SPIKE_RATE`, size `SPIKE_PRE_ALLOCATED_VUS` at peak rate × worst latency, or
+set it equal to `SPIKE_MAX_VUS` to avoid allocation drops entirely.
 
 ## Reports
 
@@ -271,7 +272,7 @@ Per test type:
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
 | `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (50), `SOAK_MAX_VUS` (500) |
-| `spike.js` | `SPIKE_BASE_RATE` (90), `SPIKE_RATE` (400), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s), `SPIKE_PRE_ALLOCATED_VUS` (1500), `SPIKE_MAX_VUS` (2000) |
+| `spike.js` | `SPIKE_BASE_RATE` (90), `SPIKE_RATE` (270), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s), `SPIKE_PRE_ALLOCATED_VUS` (900), `SPIKE_MAX_VUS` (2000) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once
 you have a baseline from your own machine.

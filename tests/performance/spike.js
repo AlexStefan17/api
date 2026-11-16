@@ -10,14 +10,14 @@ import { preflight } from './lib/preflight.js';
 // while the service is struggling. Keep SPIKE_RATE above SPIKE_BASE_RATE.
 
 const BASE_RATE = positiveIntFromEnv('SPIKE_BASE_RATE', 90);
-const SPIKE_RATE = positiveIntFromEnv('SPIKE_RATE', 400);
+const SPIKE_RATE = positiveIntFromEnv('SPIKE_RATE', 270);
 const WARMUP = __ENV.SPIKE_WARMUP || '10s';
 const HOLD = __ENV.SPIKE_HOLD || '30s';
 const RAMP = __ENV.SPIKE_RAMP || '5s';
 const RECOVERY = __ENV.SPIKE_RECOVERY || '30s';
-// Preallocate enough VUs for the burst: at 400 req/s and the observed ~3s
-// tail, the spike needs ~1.200 VUs. Preallocating avoids allocation drops.
-const PRE_ALLOCATED_VUS = positiveIntFromEnv('SPIKE_PRE_ALLOCATED_VUS', 1500);
+// Preallocate enough VUs for the burst: at 270 req/s and a ~3.3s tail the
+// spike needs ~900 VUs. Preallocating avoids allocation drops.
+const PRE_ALLOCATED_VUS = positiveIntFromEnv('SPIKE_PRE_ALLOCATED_VUS', 900);
 const MAX_VUS = positiveIntFromEnv('SPIKE_MAX_VUS', 2000);
 
 export const options = {
