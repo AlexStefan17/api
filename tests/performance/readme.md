@@ -12,7 +12,7 @@ from Docker, or in CI, and write their reports to `tests/performance/results/`.
 | `stress.js` | stress | 25 → 50 → … → 300 VUs | Find where the service stops meeting its SLOs | ~28m 30s |
 | `stress_rps.js` | stress (RPS) | 25 → 50 → … → 400 req/s | Find the max request rate before the SLO breaks | ~20m 20s |
 | `soak.js` | soak | 90 req/s, 30m | Find leaks / degradation over time | ~30m 30s |
-| `spike.js` | spike | 2 → 200 → 2 VUs | Survive a traffic burst and recover | ~1m 55s |
+| `spike.js` | spike | 90 → 400 → 90 req/s | Survive a traffic burst and recover | ~1m 55s |
 
 Run the smoke test first, then baseline, then the others.
 
@@ -151,13 +151,14 @@ requested rate; lower `SOAK_RATE` or raise `SOAK_MAX_VUS`.
 
 ## Spike
 
-Jumps from low to high load and back. `SPIKE_VUS` should be clearly above
-`SPIKE_BASE_VUS` and high enough to be meaningful for the measured capacity
-(~183 req/s with one worker, ~389 req/s with four):
+Jumps from the baseline rate to a burst rate and back. The load is an arrival
+rate, so the burst is applied even when the service slows down. `SPIKE_RATE`
+defaults to 400 req/s, just above the ~389 req/s measured with four workers; for
+a realistic acceptance spike below capacity, use 180–270 req/s.
 
 ```bash
 ./tests/performance/run.sh spike
-./tests/performance/run.sh spike -e SPIKE_BASE_VUS=5 -e SPIKE_VUS=300
+./tests/performance/run.sh spike -e SPIKE_RATE=600 -e SPIKE_MAX_VUS=3000
 ```
 
 ## Reports
@@ -266,7 +267,7 @@ Per test type:
 | `stress.js` | `STRESS_STEP_VUS` (25), `STRESS_PEAK_VUS` (300), `STRESS_RAMP` (20s), `STRESS_STEP_DURATION` (2m), `STRESS_RAMP_DOWN` (30s) |
 | `stress_rps.js` | `STRESS_RPS_START` (25), `STRESS_RPS_STEP` (25), `STRESS_RPS_PEAK` (400), `STRESS_RPS_RAMP` (15s), `STRESS_RPS_STEP_DURATION` (1m), `STRESS_RPS_RAMP_DOWN` (20s), `STRESS_RPS_PRE_ALLOCATED_VUS` (50), `STRESS_RPS_MAX_VUS` (1000) |
 | `soak.js` | `SOAK_RATE` (90), `SOAK_DURATION` (30m), `SOAK_PRE_ALLOCATED_VUS` (50), `SOAK_MAX_VUS` (500) |
-| `spike.js` | `SPIKE_BASE_VUS` (2), `SPIKE_VUS` (200), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s) |
+| `spike.js` | `SPIKE_BASE_RATE` (90), `SPIKE_RATE` (400), `SPIKE_WARMUP` (10s), `SPIKE_HOLD` (30s), `SPIKE_RAMP` (5s), `SPIKE_RECOVERY` (30s), `SPIKE_PRE_ALLOCATED_VUS` (100), `SPIKE_MAX_VUS` (2000) |
 
 Thresholds are intentionally generous for shared CI runners; tighten them once
 you have a baseline from your own machine.
@@ -313,13 +314,13 @@ instead.
   worker serves ~183 req/s and four workers ~389 req/s; past that, extra workers
   mostly add contention and Solr timeouts rather than throughput. For real
   measurements use a dedicated environment, ideally with php-fpm and OPcache.
-- Arrival-rate tests (`baseline`, `soak`, `stress_rps`) need enough `*_MAX_VUS`
-  to sustain the target rate. If k6 reports `dropped_iterations`, the service
-  could not keep up.
-- `smoke`, `stress` and `spike` are **closed-loop** (`constant-vus` /
-  `ramping-vus`): VUs are concurrent users, not a fixed request rate, so
-  throughput follows from latency. `baseline`, `soak` and `stress_rps` are
-  **open-loop** (`*-arrival-rate`): the requested RPS stays fixed.
+- Arrival-rate tests (`baseline`, `soak`, `stress_rps`, `spike`) need enough
+  `*_MAX_VUS` to sustain the target rate. If k6 reports `dropped_iterations`, the
+  service could not keep up.
+- `smoke` and `stress` are **closed-loop** (`constant-vus` / `ramping-vus`):
+  VUs are concurrent users, not a fixed request rate, so throughput follows from
+  latency. `baseline`, `soak`, `stress_rps` and `spike` are **open-loop**
+  (`*-arrival-rate`): the requested RPS stays fixed.
 - Do not run load tests against production without coordinating with the owners;
   use local or staging.
 - `run.sh` creates `tests/performance/results/` if it is missing; generated files

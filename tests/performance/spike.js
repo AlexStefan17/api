@@ -3,33 +3,39 @@ import { getTotal } from './lib/total-request.js';
 import { buildSummary } from './lib/report.js';
 import { preflight } from './lib/preflight.js';
 
-// Spike test: a sudden jump from low load to high load, then back down.
+// Spike test: a sudden jump from the baseline rate to a burst rate, then back.
 //
-// Checks whether the service survives a traffic burst and how quickly it
-// recovers afterwards. Keep SPIKE_VUS clearly above SPIKE_BASE_VUS.
+// The load is an arrival rate, so the burst is applied even when the service
+// slows down. Unlike a ramping-vus spike, this does not quietly reduce traffic
+// while the service is struggling. Keep SPIKE_RATE above SPIKE_BASE_RATE.
 
-const BASE_VUS = positiveIntFromEnv('SPIKE_BASE_VUS', 2);
-const SPIKE_VUS = positiveIntFromEnv('SPIKE_VUS', 200);
+const BASE_RATE = positiveIntFromEnv('SPIKE_BASE_RATE', 90);
+const SPIKE_RATE = positiveIntFromEnv('SPIKE_RATE', 400);
 const WARMUP = __ENV.SPIKE_WARMUP || '10s';
 const HOLD = __ENV.SPIKE_HOLD || '30s';
 const RAMP = __ENV.SPIKE_RAMP || '5s';
 const RECOVERY = __ENV.SPIKE_RECOVERY || '30s';
+const PRE_ALLOCATED_VUS = positiveIntFromEnv('SPIKE_PRE_ALLOCATED_VUS', 100);
+const MAX_VUS = positiveIntFromEnv('SPIKE_MAX_VUS', 2000);
 
 export const options = {
   scenarios: {
     spike: {
-      executor: 'ramping-vus',
-      startVUs: 0,
+      executor: 'ramping-arrival-rate',
+      startRate: 0,
+      timeUnit: '1s',
+      preAllocatedVUs: PRE_ALLOCATED_VUS,
+      maxVUs: MAX_VUS,
       stages: [
-        { duration: WARMUP, target: BASE_VUS },
-        { duration: HOLD, target: BASE_VUS },
-        { duration: RAMP, target: SPIKE_VUS },
-        { duration: HOLD, target: SPIKE_VUS },
-        { duration: RAMP, target: BASE_VUS },
-        { duration: RECOVERY, target: BASE_VUS },
+        { duration: WARMUP, target: BASE_RATE },
+        { duration: HOLD, target: BASE_RATE },
+        { duration: RAMP, target: SPIKE_RATE },
+        { duration: HOLD, target: SPIKE_RATE },
+        { duration: RAMP, target: BASE_RATE },
+        { duration: RECOVERY, target: BASE_RATE },
         { duration: '5s', target: 0 },
       ],
-      gracefulRampDown: '5s',
+      gracefulStop: '30s',
     },
   },
   thresholds: standardThresholds(),
