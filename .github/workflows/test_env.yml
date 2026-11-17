@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Show runner resources
         run: |
@@ -339,9 +339,9 @@ jobs:
           echo "All basic tests passed!"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install test dependencies
@@ -408,7 +408,7 @@ jobs:
 
       - name: Upload performance reports
         if: always() && inputs.performance != 'none'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-${{ inputs.performance }}-${{ inputs.fixture }}
           path: tests/performance/results/
