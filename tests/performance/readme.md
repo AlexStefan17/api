@@ -55,6 +55,7 @@ Start the API first (see the repository README), then from the `api/` directory:
 # one of each type
 ./tests/performance/run.sh baseline
 ./tests/performance/run.sh stress
+./tests/performance/run.sh stress_rps
 ./tests/performance/run.sh soak
 ./tests/performance/run.sh spike
 ```
