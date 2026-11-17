@@ -122,7 +122,7 @@ jobs:
           # is switched on after the cores exist: security.json is written
           # with the same blockUnknown/admin setup as production, then Solr
           # is restarted to load it.
-          python3 tests/performance/solr-security.py /tmp/solr-security.json
+          python3 devops/solr/solr-security.py /tmp/solr-security.json
           docker cp /tmp/solr-security.json solr:/var/solr/data/security.json
           docker exec -u 0 solr \
             chown solr:solr /var/solr/data/security.json
