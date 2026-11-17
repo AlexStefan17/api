@@ -64,11 +64,22 @@ jobs:
           php -l util/loadEnv.php
 
       - name: Start Apache Solr
+        env:
+          SOLR_TEST_USER: ${{ secrets.SOLR_TEST_USER }}
+          SOLR_TEST_PASS: ${{ secrets.SOLR_TEST_PASS }}
         run: |
+          set -euo pipefail
+          : "${SOLR_TEST_USER:?SOLR_TEST_USER secret is not set}"
+          : "${SOLR_TEST_PASS:?SOLR_TEST_PASS secret is not set}"
+
+          # Same version as production (zimbor.go.ro runs Solr 10.0.0). Solr 10
+          # starts in SolrCloud by default; production runs standalone cores,
+          # so --user-managed is required.
           docker run -d \
             --name solr \
             -p 127.0.0.1:8983:8983 \
-            solr:9
+            solr:10.0.0 \
+            solr-foreground --user-managed
 
           for attempt in $(seq 1 60); do
             if curl -fsS \
@@ -87,84 +98,118 @@ jobs:
             sleep 2
           done
 
-          # The job core is created from the schema captured from the source
-          # core, so the uniqueKey (url) and field types match production.
-          # The company core only has to exist for /v1/total/.
+          # Production has exactly two cores, job and company. Each one gets
+          # its own configset built from the schema captured from production,
+          # so the uniqueKey (url for job, id for company) and the field types
+          # match production.
           docker exec solr mkdir -p /var/solr/configsets
-          docker exec solr cp -r \
-            /opt/solr/server/solr/configsets/_default \
-            /var/solr/configsets/peviitor
-          docker cp tests/test-data/performance/job.schema.xml \
-            solr:/var/solr/configsets/peviitor/conf/managed-schema.xml
+          for core in job company; do
+            docker exec solr cp -r \
+              /opt/solr/server/solr/configsets/_default \
+              /var/solr/configsets/$core
+            docker cp tests/test-data/performance/$core.schema.xml \
+              solr:/var/solr/configsets/$core/conf/managed-schema.xml
+          done
           docker exec -u 0 solr \
-            chown -R solr:solr /var/solr/configsets/peviitor
+            chown -R solr:solr /var/solr/configsets
 
           docker exec solr bin/solr create \
-            -c job -d /var/solr/configsets/peviitor
-          docker exec solr bin/solr create -c company
+            -c job -d /var/solr/configsets/job
+          docker exec solr bin/solr create \
+            -c company -d /var/solr/configsets/company
+
+          # Solr refuses to start with BasicAuth and no users, so the auth
+          # is switched on after the cores exist: security.json is written
+          # with the same blockUnknown/admin setup as production, then Solr
+          # is restarted to load it.
+          python3 tests/performance/solr-security.py /tmp/solr-security.json
+          docker cp /tmp/solr-security.json solr:/var/solr/data/security.json
+          docker exec -u 0 solr \
+            chown solr:solr /var/solr/data/security.json
+          rm -f /tmp/solr-security.json
+          docker restart solr
 
           for core in job company; do
-            for attempt in $(seq 1 30); do
-              if curl -fsS \
+            for attempt in $(seq 1 60); do
+              if curl -fsS -u "$SOLR_TEST_USER:$SOLR_TEST_PASS" \
                 "http://127.0.0.1:8983/solr/$core/select?q=*:*&rows=0" \
                 > /dev/null; then
                 echo "Core '$core' is ready"
                 break
               fi
 
-              if [ "$attempt" -eq 30 ]; then
+              if [ "$attempt" -eq 60 ]; then
                 echo "Core '$core' did not become ready"
                 docker logs solr
                 exit 1
               fi
 
-              sleep 1
+              sleep 2
             done
           done
 
-      - name: Load jobs from the migration fixture
+      - name: Load jobs and companies from the fixtures
         env:
           LOCAL_SOLR_URL: http://127.0.0.1:8983/solr
           FIXTURE: tests/test-data/performance/${{ inputs.fixture }}
+          COMPANY_FIXTURE: tests/test-data/performance/company.json.gz
+          SOLR_USER: ${{ secrets.SOLR_TEST_USER }}
+          SOLR_PASS: ${{ secrets.SOLR_TEST_PASS }}
         run: |
           set -euo pipefail
+          : "${SOLR_USER:?SOLR_TEST_USER secret is not set}"
+          : "${SOLR_PASS:?SOLR_TEST_PASS secret is not set}"
 
-          # The fixtures are 30,000- and 50,000-document subsets of the
-          # production job core, committed so this workflow does not depend
-          # on PROD Solr (or its credentials) at all. The full snapshot is
-          # kept next to them; refresh them with
-          # local_environment/Linux/backup_zimbor.sh in the PEviitor fork.
-          gunzip -c "$FIXTURE" > /tmp/job.json
-          expected=$(python3 -c '
-          import json
+          # The fixtures are subsets of the production snapshots, committed so
+          # this workflow does not depend on production Solr (or its
+          # credentials) at test time. The full snapshots are kept next to
+          # them; refresh them with local_environment/Linux/backup_zimbor.sh.
+          load() {
+            local core="$1" file="$2" json expected local_total
 
-          with open("/tmp/job.json") as handle:
+            json=$(mktemp)
+            gunzip -c "$file" > "$json"
+            expected=$(python3 -c '
+          import json, sys
+
+          with open(sys.argv[1]) as handle:
               print(len(json.load(handle)))
-          ')
-          echo "Fixture contains $expected jobs"
+          ' "$json")
+            echo "Fixture for '$core' contains $expected documents"
 
-          curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data-binary @/tmp/job.json \
-            "$LOCAL_SOLR_URL/job/update?commit=true" > /dev/null
+            curl -fsS -u "$SOLR_USER:$SOLR_PASS" -X POST \
+              -H 'Content-Type: application/json' \
+              --data-binary @"$json" \
+              "$LOCAL_SOLR_URL/$core/update?commit=true" > /dev/null
 
-          local_total=$(curl -fsS "$LOCAL_SOLR_URL/job/select?q=*:*&rows=0&wt=json" \
-            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
-          echo "Local job core now contains $local_total documents"
+            local_total=$(curl -fsS -u "$SOLR_USER:$SOLR_PASS" \
+              "$LOCAL_SOLR_URL/$core/select?q=*:*&rows=0&wt=json" \
+              | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
+            echo "Local '$core' core now contains $local_total documents"
 
-          if [ "$local_total" -ne "$expected" ]; then
-            echo "ERROR: indexed $local_total of $expected jobs"
-            exit 1
-          fi
+            rm -f "$json"
+
+            if [ "$local_total" -ne "$expected" ]; then
+              echo "ERROR: indexed $local_total of $expected '$core' documents"
+              exit 1
+            fi
+          }
+
+          load job "$FIXTURE"
+          load company "$COMPANY_FIXTURE"
 
       - name: Configure connection
+        env:
+          SOLR_USER: ${{ secrets.SOLR_TEST_USER }}
+          SOLR_PASS: ${{ secrets.SOLR_TEST_PASS }}
         run: |
           # The API loads api.env from the repository root.
-          cat > api.env <<'EOF'
+          cat > api.env <<EOF
           SOLR_SERVER=localhost:8983
           LOCAL_SERVER=localhost:8983
           PROTOCOL=http
-          SOLR_USER=
-          SOLR_PASS=
+          SOLR_USER=${SOLR_USER}
+          SOLR_PASS=${SOLR_PASS}
           EOF
 
       - name: Start PHP
@@ -193,22 +238,44 @@ jobs:
           done
 
       - name: Test services
+        env:
+          SOLR_USER: ${{ secrets.SOLR_TEST_USER }}
+          SOLR_PASS: ${{ secrets.SOLR_TEST_PASS }}
         run: |
           set -euo pipefail
 
+          anonymous=$(curl -s -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:8983/solr/job/select?q=*:*&rows=0")
+          if [ "$anonymous" != "401" ]; then
+            echo "Solr answered an anonymous request with $anonymous, expected 401"
+            exit 1
+          fi
+          echo "Solr rejects anonymous requests (401)"
+
           for core in job company; do
-            curl -fsS \
+            curl -fsS -u "$SOLR_USER:$SOLR_PASS" \
               "http://127.0.0.1:8983/solr/$core/select?q=*:*&rows=0" \
               > /dev/null
             echo "Solr core '$core' responds"
           done
 
-          jobs=$(curl -fsS "http://127.0.0.1:8983/solr/job/select?q=*:*&rows=0&wt=json" \
+          jobs=$(curl -fsS -u "$SOLR_USER:$SOLR_PASS" \
+            "http://127.0.0.1:8983/solr/job/select?q=*:*&rows=0&wt=json" \
             | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
           echo "Local job core contains $jobs documents"
 
           if [ "$jobs" -lt 1 ]; then
             echo "Local job core is empty; the fixture did not populate it"
+            exit 1
+          fi
+
+          companies=$(curl -fsS -u "$SOLR_USER:$SOLR_PASS" \
+            "http://127.0.0.1:8983/solr/company/select?q=*:*&rows=0&wt=json" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["response"]["numFound"])')
+          echo "Local company core contains $companies documents"
+
+          if [ "$companies" -lt 1 ]; then
+            echo "Local company core is empty; the fixture did not populate it"
             exit 1
           fi
 
@@ -251,6 +318,18 @@ jobs:
           '
 
           echo "All basic tests passed!"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run functional tests against Solr
+        run: npm run test:functional
 
       - name: Install k6
         if: inputs.performance != 'none'
