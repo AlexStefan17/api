@@ -1,4 +1,4 @@
-import { BASE_URL, ENDPOINT, RESULTS_DIR } from './config.js';
+import { BASE_URL, ENDPOINT, RESULTS_DIR, summaryTrendStats } from './config.js';
 
 // Builds the object k6 expects from `handleSummary`. Each test type writes its
 // own <test>-summary.json / <test>-summary.txt so runs never overwrite each
@@ -59,7 +59,7 @@ function buildTextSummary(testName, data) {
     lines.splice(4, 0, `Dropped iterations: ${droppedCount} (${formatNumber(droppedPct)}%)`);
   }
 
-  ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'].forEach((name) => {
+  summaryTrendStats.forEach((name) => {
     lines.push(`  ${name.padEnd(5)} ${formatNumber(duration[name])}`);
   });
 

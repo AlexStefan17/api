@@ -61,6 +61,7 @@ for arg in "$@"; do
   esac
 done
 RESULTS_DIR="${RESULTS_DIR%/}"
+export RESULTS_DIR
 
 # k6 has no report file by default: the web dashboard has to be enabled, and
 # its HTML export is what produces the charts and tables Locust shows out of

@@ -3,7 +3,7 @@
 // Everything can be overridden from the command line with `-e NAME=value`,
 // which keeps the scripts usable both locally and in CI without edits.
 
-export const BASE_URL = (__ENV.BASE_URL || 'http://192.168.122.252:8081').replace(/\/+$/, '');
+export const BASE_URL = (__ENV.BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 export const ENDPOINT = `/${(__ENV.ENDPOINT || '/v1/total/').replace(/^\/+/, '')}`;
 export const RESULTS_DIR = (__ENV.RESULTS_DIR || 'tests/performance/results').replace(/\/+$/, '');
 export const REQUEST_TIMEOUT = __ENV.REQUEST_TIMEOUT || '10s';
