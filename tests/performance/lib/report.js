@@ -1,14 +1,19 @@
-import { BASE_URL, ENDPOINT, RESULTS_DIR, summaryTrendStats } from './config.js';
+import { BASE_URL, ENDPOINT, ENDPOINT_NAME, RESULTS_DIR, summaryTrendStats } from './config.js';
 
 // Builds the object k6 expects from `handleSummary`. Each test type writes its
 // own <test>-summary.json / <test>-summary.txt so runs never overwrite each
 // other unless they share the same RESULTS_DIR and test type on purpose.
+//
+// When testing different endpoints, the endpoint name is included in the
+// filename so results don't collide: smoke-total-summary.json vs
+// smoke-random-summary.json.
 export function buildSummary(testName, data) {
   const summary = buildTextSummary(testName, data);
+  const suffix = ENDPOINT_NAME !== 'total' ? `-${ENDPOINT_NAME}` : '';
 
   return {
-    [`${RESULTS_DIR}/${testName}-summary.json`]: JSON.stringify(data, null, 2),
-    [`${RESULTS_DIR}/${testName}-summary.txt`]: summary,
+    [`${RESULTS_DIR}/${testName}${suffix}-summary.json`]: JSON.stringify(data, null, 2),
+    [`${RESULTS_DIR}/${testName}${suffix}-summary.txt`]: summary,
     stdout: `\n${summary}\n`,
   };
 }
@@ -37,7 +42,7 @@ function buildTextSummary(testName, data) {
   const runMs = data.state && data.state.testRunDurationMs ? data.state.testRunDurationMs : 0;
 
   const lines = [
-    `${testName.toUpperCase()} - GET ${BASE_URL}${ENDPOINT}`,
+    `${testName.toUpperCase()} - GET ${BASE_URL}${ENDPOINT} (endpoint: ${ENDPOINT_NAME})`,
     `Duration: ${formatNumber(runMs / 1000, 1)}s`,
     '',
     `Requests: ${requests.count || 0} (${formatNumber(requests.rate)}/s)`,

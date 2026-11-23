@@ -1,6 +1,6 @@
 import http from 'k6/http';
 
-import { REQUEST_TIMEOUT, targetUrl } from './config.js';
+import { REQUEST_TIMEOUT, targetUrl, ENDPOINT_NAME } from './config.js';
 
 // Runs once, before the scenarios start. Catches a wrong BASE_URL/ENDPOINT
 // before the load test wastes time sending thousands of 404s, and prints the
@@ -20,10 +20,13 @@ export function preflight() {
     },
     tags: {
       phase: 'preflight',
+      endpoint: ENDPOINT_NAME,
     },
   });
 
   if (response.status < 200 || response.status >= 300) {
+    console.error(`Preflight FAILED: GET ${url} returned HTTP ${response.status}`);
+    console.error(`   Body: ${response.body.substring(0, 300)}`);
     throw new Error(
       `Preflight GET ${url} returned HTTP ${response.status}. ` +
         'Check BASE_URL and ENDPOINT; for an API behind /api use ' +
@@ -31,7 +34,7 @@ export function preflight() {
     );
   }
 
-  console.log(`Preflight OK (HTTP ${response.status}): ${url}`);
+  console.log(`Preflight OK (HTTP ${response.status}, endpoint: ${ENDPOINT_NAME}): ${url}`);
 
   return { url, status: response.status };
 }

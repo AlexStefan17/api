@@ -1,5 +1,5 @@
-import { positiveIntFromEnv, standardThresholds, summaryTrendStats } from './lib/config.js';
-import { getTotal } from './lib/total-request.js';
+import { positiveIntFromEnv, standardThresholds, summaryTrendStats, ENDPOINT_NAME } from './lib/config.js';
+import { getTotal } from './lib/request.js';
 import { buildSummary } from './lib/report.js';
 import { preflight } from './lib/preflight.js';
 
@@ -31,7 +31,7 @@ export const options = {
   thresholds: standardThresholds(),
   summaryTrendStats,
   tags: {
-    endpoint: 'total',
+    endpoint: ENDPOINT_NAME,
   },
 };
 

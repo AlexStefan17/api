@@ -6,6 +6,7 @@
 #   ./run.sh smoke -e BASE_URL=http://127.0.0.1:8000
 #   ./run.sh baseline -e BASELINE_DURATION=5m
 #   ./run.sh stress -e STRESS_PEAK_VUS=100
+#   ./run.sh smoke -e ENDPOINT=/v1/random/
 #
 # Every run also writes an HTML report with charts (the Locust `--html`
 # equivalent). Disable it with NO_HTML=1, or set REPORT_HTML=<path> to choose
@@ -38,30 +39,63 @@ case "$TYPE" in
 esac
 
 # The HTML report must land next to the JSON/TXT summaries written by
-# lib/report.js, so mirror the RESULTS_DIR passed through the k6 options.
+# lib/report.js, so mirror the RESULTS_DIR and ENDPOINT passed through the k6
+# options, so the report filenames match the summary filenames.
 RESULTS_DIR="${RESULTS_DIR:-tests/performance/results}"
+ENDPOINT_VALUE="/v1/total/"
 expect_results_dir=0
+expect_endpoint=0
 for arg in "$@"; do
   case "$arg" in
     -e|--env)
       expect_results_dir=1
+      expect_endpoint=1
       ;;
     RESULTS_DIR=*)
       if [ "$expect_results_dir" = 1 ]; then
         RESULTS_DIR="${arg#RESULTS_DIR=}"
         expect_results_dir=0
       fi
+      expect_endpoint=0
+      ;;
+    ENDPOINT=*)
+      if [ "$expect_endpoint" = 1 ]; then
+        ENDPOINT_VALUE="${arg#ENDPOINT=}"
+        expect_endpoint=0
+      fi
+      expect_results_dir=0
       ;;
     --env=RESULTS_DIR=*)
       RESULTS_DIR="${arg#--env=RESULTS_DIR=}"
       ;;
+    --env=ENDPOINT=*)
+      ENDPOINT_VALUE="${arg#--env=ENDPOINT=}"
+      ;;
     *)
       expect_results_dir=0
+      expect_endpoint=0
       ;;
   esac
 done
 RESULTS_DIR="${RESULTS_DIR%/}"
 export RESULTS_DIR
+
+# Also pick up ENDPOINT from the shell environment if not set via -e
+ENDPOINT_VALUE="${ENDPOINT:-$ENDPOINT_VALUE}"
+
+# Build endpoint suffix for the HTML report filename: /v1/total/ → '', /v1/random/ → '-random'
+endpoint_suffix=""
+case "$ENDPOINT_VALUE" in
+  */total/*|*/total) endpoint_suffix="" ;;
+  */random/*|*/random) endpoint_suffix="-random" ;;
+  *)
+    # For custom endpoints, derive a slug from the path
+    slug=$(echo "$ENDPOINT_VALUE" | sed 's|^/||;s|/$||;s|/|-|g')
+    if [ -n "$slug" ] && [ "$slug" != "v1" ]; then
+      endpoint_suffix="-${slug##v1-}"
+    fi
+    ;;
+esac
 
 # k6 has no report file by default: the web dashboard has to be enabled, and
 # its HTML export is what produces the charts and tables Locust shows out of
@@ -72,7 +106,7 @@ export RESULTS_DIR
 # the 10s smoke test, so the period defaults to 1s here.
 if [ "${NO_HTML:-0}" != "1" ]; then
   export K6_WEB_DASHBOARD="${K6_WEB_DASHBOARD:-true}"
-  export K6_WEB_DASHBOARD_EXPORT="${K6_WEB_DASHBOARD_EXPORT:-${REPORT_HTML:-$RESULTS_DIR/$NAME-report.html}}"
+  export K6_WEB_DASHBOARD_EXPORT="${K6_WEB_DASHBOARD_EXPORT:-${REPORT_HTML:-$RESULTS_DIR/$NAME${endpoint_suffix}-report.html}}"
   export K6_WEB_DASHBOARD_PERIOD="${K6_WEB_DASHBOARD_PERIOD:-1s}"
 fi
 

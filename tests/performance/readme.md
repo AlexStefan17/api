@@ -1,7 +1,17 @@
 # Performance tests (k6)
 
-Load tests for `GET /v1/total/`, one script per test type. They run locally,
+Load tests for the peviitor API, one script per test type. They run locally,
 from Docker, or in CI, and write their reports to `tests/performance/results/`.
+
+## Supported endpoints
+
+| Endpoint | Description | Response shape |
+|---|---|---|
+| `/v1/total/` (default) | Total jobs and companies count | `{ total: { jobs: <number>, companies: <number> } }` |
+| `/v1/random/` | A single random job listing | `{ title, company, location, workmode, url, ... }` |
+
+Switch endpoints with `-e ENDPOINT=/v1/random/`. Results are saved separately
+(e.g. `smoke-total-summary.json` vs `smoke-random-summary.json`).
 
 ## Test types
 
@@ -20,6 +30,65 @@ Before each run, a **preflight** request checks the effective URL and aborts
 immediately with a clear message if it does not return 2xx — so a wrong
 `BASE_URL`/`ENDPOINT` costs one request, not ten seconds of 404s. The effective
 target is also printed at the start of every run.
+
+## Features
+
+### Multi-endpoint testing
+
+Test any supported endpoint with a single test file. The `ENDPOINT` environment
+variable selects which endpoint to test:
+
+```bash
+# Test /v1/total/ (default)
+./tests/performance/run.sh smoke
+
+# Test /v1/random/
+./tests/performance/run.sh smoke -e ENDPOINT=/v1/random/
+
+# Baseline for /v1/random/
+./tests/performance/run.sh baseline -e ENDPOINT=/v1/random/
+```
+
+Each endpoint has its own response validation logic (defined in
+`lib/endpoints.js`), and results are saved with endpoint-specific names:
+
+- `smoke-total-summary.json` / `smoke-total-summary.txt`
+- `smoke-random-summary.json` / `smoke-random-summary.txt`
+
+Adding a new endpoint: edit `lib/endpoints.js` and add an entry with a
+validation function. Unknown endpoints still work but skip body validation.
+
+### Enhanced error logging
+
+When checks fail, detailed error information is logged to help diagnose the
+issue:
+
+- **Status mismatch**: logs expected vs actual status code, URL, and body preview
+- **Content-Type mismatch**: logs expected vs actual content type
+- **Body validation failure**: logs the response body and expected shape
+- **JSON parse errors**: logs the parse error and body preview
+- **Slow requests**: warns when response time exceeds 1000ms
+- **Connection errors**: logs connection timeouts and network errors
+
+Example error output:
+```
+total: Expected status 200, got 503
+   URL: http://127.0.0.1:8000/v1/total/
+   Body: {"error":"Job core unavailable","details":"SOLR_SERVER not set"}
+```
+
+### Test data variation
+
+Each request uses randomized headers and includes a random delay (0–2 seconds)
+to simulate real user traffic and avoid cache effects:
+
+- **Accept-Language**: rotates between `en-US`, `ro-RO`, `de-DE`, `fr-FR`, `en-GB`
+- **User-Agent**: varies between common browser strings
+- **Cache-Control**: sometimes `no-cache`, `max-age=0`, `max-age=60`, or absent
+- **Think time**: 0–2 second random delay between requests
+
+This prevents caches from serving identical responses and produces more
+realistic latency measurements.
 
 ## Install k6
 
@@ -48,6 +117,9 @@ Start the API first (see the repository README), then from the `api/` directory:
 # smoke test against a local API
 ./tests/performance/run.sh smoke
 
+# smoke test for /v1/random/
+./tests/performance/run.sh smoke -e ENDPOINT=/v1/random/
+
 # against a remote API behind a /api prefix
 ./tests/performance/run.sh smoke \
   -e BASE_URL=http://192.168.122.252:8081/api
@@ -65,6 +137,7 @@ Start the API first (see the repository README), then from the `api/` directory:
 ```bash
 k6 run tests/performance/smoke.js
 k6 run -e BASE_URL=http://192.168.122.252:8081/api tests/performance/smoke.js
+k6 run -e ENDPOINT=/v1/random/ tests/performance/smoke.js
 ```
 
 ## Smoke
@@ -75,6 +148,7 @@ after every deploy and before any heavier test.
 ```bash
 ./tests/performance/run.sh smoke
 ./tests/performance/run.sh smoke -e SMOKE_VUS=2 -e SMOKE_DURATION=30s
+./tests/performance/run.sh smoke -e ENDPOINT=/v1/random/
 ```
 
 ## Baseline
@@ -174,16 +248,25 @@ summary. `run.sh` therefore enables k6's web dashboard export, which produces
 the equivalent of `locust --html`. Every run writes, inside
 `tests/performance/results/`:
 
-- `<test>-report.html` — self-contained HTML report with the summary tables and
-  time-series charts (latency, request rate, VUs). This is the Locust-style
-  view. Disable it with `NO_HTML=1`, or choose another path with
+- `<test>-<endpoint>-report.html` — self-contained HTML report with the summary
+  tables and time-series charts (latency, request rate, VUs). This is the
+  Locust-style view. Disable it with `NO_HTML=1`, or choose another path with
   `REPORT_HTML=...`. It follows `-e RESULTS_DIR=...` so it stays next to the
-  other files.
-- `<test>-summary.json` — full k6 summary, for later analysis (pandas, jq, diffing runs)
-- `<test>-summary.txt` — compact human-readable summary, including the status
+  other files. The endpoint name is included when not `/v1/total/` (e.g.
+  `smoke-random-report.html`).
+- `<test>-<endpoint>-summary.json` — full k6 summary, for later analysis (pandas, jq, diffing runs)
+- `<test>-<endpoint>-summary.txt` — compact human-readable summary, including the status
   code distribution (2xx/3xx/4xx/5xx) and `dropped_iterations` for arrival-rate
   tests, to make failures obvious
 - the same summary is printed to stdout
+
+For the default `/v1/total/` endpoint, the `-total-` infix is omitted for
+backward compatibility:
+
+```
+smoke-summary.json          # /v1/total/ (default)
+smoke-random-summary.json   # /v1/random/
+```
 
 ```bash
 # HTML report (default behavior of run.sh)
@@ -255,7 +338,7 @@ Global settings, passed with `-e NAME=value`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `BASE_URL` | `http://127.0.0.1:8000` | API under test |
-| `ENDPOINT` | `/v1/total/` | Request path; use it when the API sits behind a prefix |
+| `ENDPOINT` | `/v1/total/` | Endpoint path to test (`/v1/total/` or `/v1/random/`) |
 | `REQUEST_TIMEOUT` | `10s` | Per-request timeout |
 | `P95_MS` | `800` | p95 latency threshold (ms) |
 | `P99_MS` | `1500` | p99 latency threshold (ms) |
@@ -313,6 +396,35 @@ instead.
 - **`could not open 'tests/performance/results/...'`** — the results directory is
   missing. Run the test through `run.sh` (it creates the directory) or create it
   with `mkdir -p tests/performance/results` before calling `k6 run` directly.
+- **Error logs show errors but tests pass** — the error logs are informational.
+  They fire when individual checks fail during the run, but the overall test
+  result depends on the thresholds. If most requests succeed but a few fail, you
+  will see error logs but the test may still pass.
+- **Slow request warnings** — requests taking longer than 1000ms are logged
+  to help identify performance issues. These are warnings, not failures.
+
+## File structure
+
+```
+tests/performance/
+├── lib/
+│   ├── config.js        # Shared configuration (BASE_URL, ENDPOINT, thresholds)
+│   ├── endpoints.js     # Endpoint definitions and validation logic
+│   ├── preflight.js     # Pre-test URL check
+│   ├── report.js        # Summary report generation
+│   ├── request.js       # Main request function with error logging
+│   ├── test-data.js     # Random headers and delays for realistic load
+│   └── total-request.js # Backward-compatible re-export of request.js
+├── results/             # Output directory (git-ignored)
+├── run.sh               # Convenience wrapper for k6
+├── smoke.js             # Smoke test
+├── baseline.js          # Baseline reference run
+├── stress.js            # Stress test (VU ramp)
+├── stress_rps.js        # Stress test (RPS ramp)
+├── soak.js              # Endurance test
+├── spike.js             # Spike test (traffic burst)
+└── readme.md            # This file
+```
 
 ## Notes
 
