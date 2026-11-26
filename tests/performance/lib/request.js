@@ -42,10 +42,8 @@ function recordStatus(status) {
 export function makeRequest() {
   const url = targetUrl();
   
-  // Vary headers and timing to simulate real user traffic and avoid cache effects
+  // Vary headers to simulate real user traffic and avoid cache effects
   const headers = getRandomHeaders();
-  const delay = getRandomDelay();
-  sleep(delay);
 
   const response = http.get(url, {
     timeout: REQUEST_TIMEOUT,
