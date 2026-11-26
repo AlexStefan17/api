@@ -12,7 +12,7 @@ import { preflight } from './lib/preflight.js';
 
 const START_RATE = positiveIntFromEnv('STRESS_RPS_START', 25);
 const STEP_RATE = positiveIntFromEnv('STRESS_RPS_STEP', 25);
-const PEAK_RATE = positiveIntFromEnv('STRESS_RPS_PEAK', 400);
+const PEAK_RATE = positiveIntFromEnv('STRESS_RPS_PEAK', 500);
 const STEP_RAMP = __ENV.STRESS_RPS_RAMP || '15s';
 const STEP_DURATION = __ENV.STRESS_RPS_STEP_DURATION || '1m';
 const RAMP_DOWN = __ENV.STRESS_RPS_RAMP_DOWN || '20s';
