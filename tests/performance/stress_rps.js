@@ -10,9 +10,9 @@ import { preflight } from './lib/preflight.js';
 // how many req/s does the service miss its SLO?". If k6 reports
 // dropped_iterations, the service could not keep up even with STRESS_RPS_MAX_VUS.
 
-const START_RATE = positiveIntFromEnv('STRESS_RPS_START', 25);
+const START_RATE = positiveIntFromEnv('STRESS_RPS_START', 300);
 const STEP_RATE = positiveIntFromEnv('STRESS_RPS_STEP', 25);
-const PEAK_RATE = positiveIntFromEnv('STRESS_RPS_PEAK', 1000);
+const PEAK_RATE = positiveIntFromEnv('STRESS_RPS_PEAK', 1500);
 const STEP_RAMP = __ENV.STRESS_RPS_RAMP || '15s';
 const STEP_DURATION = __ENV.STRESS_RPS_STEP_DURATION || '1m';
 const RAMP_DOWN = __ENV.STRESS_RPS_RAMP_DOWN || '20s';
